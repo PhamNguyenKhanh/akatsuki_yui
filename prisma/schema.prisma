@@ -16,16 +16,16 @@ enum UserStatus {
 }
 
 model User {
-  id            String        @id @default(uuid()) @db.Uuid
-  email         String        @unique @db.VarChar(255)
-  passwordHash  String        @db.VarChar(255)
-  fullName      String        @db.VarChar(150)
-  avatarUrl     String?       @db.Text
-  status        UserStatus    @default(PENDING)
-  approvedAt    DateTime?
-  approvedById  String?       @db.Uuid
-  approvedBy    User?         @relation("UserApprover", fields: [approvedById], references: [id], onDelete: SetNull)
-  approvedUsers User[]        @relation("UserApprover")
+  id                 String          @id @default(uuid()) @db.Uuid
+  email              String          @unique @db.VarChar(255)
+  passwordHash       String          @db.VarChar(255)
+  fullName           String          @db.VarChar(150)
+  avatarUrl          String?         @db.Text
+  status             UserStatus      @default(PENDING)
+  approvedAt         DateTime?
+  approvedById       String?         @db.Uuid
+  approvedBy         User?           @relation("UserApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedUsers      User[]          @relation("UserApprover")
   userRoles          UserRole[]
   ledProjects        Project[]       @relation("ProjectLeader")
   instructedProjects Project[]       @relation("ProjectInstructor")
@@ -33,8 +33,8 @@ model User {
   projectMemberships ProjectMember[]
   activityLogs       ActivityLog[]
   auditLogs          AuditLog[]
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
   @@index([status])
   @@index([createdAt])
@@ -139,28 +139,28 @@ model ProjectTemplate {
 }
 
 model Project {
-  id            String          @id @default(uuid()) @db.Uuid
-  name          String          @db.VarChar(200)
-  description   String?         @db.Text
-  objectives    String?         @db.Text
-  scope         String?         @db.Text
+  id            String           @id @default(uuid()) @db.Uuid
+  name          String           @db.VarChar(200)
+  description   String?          @db.Text
+  objectives    String?          @db.Text
+  scope         String?          @db.Text
   startDate     DateTime
   endDate       DateTime
-  status        ProjectStatus   @default(CREATED)
-  repositoryUrl String?         @db.Text
+  status        ProjectStatus    @default(CREATED)
+  repositoryUrl String?          @db.Text
   technologies  Json?
-  templateId    String?         @db.Uuid
+  templateId    String?          @db.Uuid
   template      ProjectTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  leaderId      String          @db.Uuid
-  leader        User            @relation("ProjectLeader", fields: [leaderId], references: [id], onDelete: Restrict)
-  instructorId  String?         @db.Uuid
-  instructor    User?           @relation("ProjectInstructor", fields: [instructorId], references: [id], onDelete: SetNull)
-  createdById   String          @db.Uuid
-  createdBy     User            @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  leaderId      String           @db.Uuid
+  leader        User             @relation("ProjectLeader", fields: [leaderId], references: [id], onDelete: Restrict)
+  instructorId  String?          @db.Uuid
+  instructor    User?            @relation("ProjectInstructor", fields: [instructorId], references: [id], onDelete: SetNull)
+  createdById   String           @db.Uuid
+  createdBy     User             @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
   members       ProjectMember[]
   archivedAt    DateTime?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   @@index([status])
   @@index([leaderId])
