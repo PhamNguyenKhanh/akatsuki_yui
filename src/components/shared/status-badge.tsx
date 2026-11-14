@@ -1,3 +1,4 @@
+import { ProjectMemberRole, ProjectStatus } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { ROLES, type RoleName } from "@/modules/authorization/constants";
 import type { UserStatus } from "@/types/auth";
@@ -33,4 +34,32 @@ export function RoleBadge({ role }: { role: string }) {
         ? "secondary"
         : "outline";
   return <Badge variant={variant}>{label}</Badge>;
+}
+
+const PROJECT_STATUS_BADGE_MAP: Record<
+  ProjectStatus,
+  { label: string; variant: "secondary" | "success" | "outline" }
+> = {
+  [ProjectStatus.CREATED]: { label: "Mới tạo", variant: "secondary" },
+  [ProjectStatus.ACTIVE]: { label: "Đang hoạt động", variant: "success" },
+  [ProjectStatus.ARCHIVED]: { label: "Đã lưu trữ", variant: "outline" },
+};
+
+export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
+  const config = PROJECT_STATUS_BADGE_MAP[status];
+  return <Badge variant={config.variant}>{config.label}</Badge>;
+}
+
+const PROJECT_MEMBER_ROLE_BADGE_MAP: Record<
+  ProjectMemberRole,
+  { label: string; variant: "default" | "secondary" | "outline" }
+> = {
+  [ProjectMemberRole.LEADER]: { label: "Leader", variant: "default" },
+  [ProjectMemberRole.INSTRUCTOR]: { label: "Instructor", variant: "secondary" },
+  [ProjectMemberRole.MEMBER]: { label: "Member", variant: "outline" },
+};
+
+export function ProjectMemberRoleBadge({ role }: { role: ProjectMemberRole }) {
+  const config = PROJECT_MEMBER_ROLE_BADGE_MAP[role];
+  return <Badge variant={config.variant}>{config.label}</Badge>;
 }

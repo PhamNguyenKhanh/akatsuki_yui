@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { UserStatus } from "@prisma/client";
-import { ArrowRight, KeyRound, ShieldCheck, UserCheck, Users } from "lucide-react";
+import { ArrowRight, FolderKanban, KeyRound, Shield, UserCheck, Users } from "lucide-react";
 import { RoleBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,23 +9,44 @@ import { prisma } from "@/lib/prisma";
 import { PERMISSIONS } from "@/modules/authorization/constants";
 import { hasPermission } from "@/modules/authorization/policy.service";
 import { requireActiveUserOrRedirect } from "@/modules/authorization/require-auth";
+import { isWorkspaceAdmin } from "@/modules/projects/project.access";
+import { projectRepository } from "@/modules/projects/project.repository";
 
 export const metadata: Metadata = {
   title: "Dashboard",
 };
 
+function formatDate(isoString: string): string {
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(isoString));
+}
+
 export default async function DashboardPage() {
   const actor = await requireActiveUserOrRedirect();
   const canReadAccounts = hasPermission(actor, PERMISSIONS.ACCOUNT_READ);
+  const canReadProjects = hasPermission(actor, PERMISSIONS.PROJECT_READ);
+  const canCreateProject = hasPermission(actor, PERMISSIONS.PROJECT_CREATE);
+  const canManageRoles = hasPermission(actor, PERMISSIONS.ROLE_MANAGE);
 
-  const accountStats = canReadAccounts
-    ? await Promise.all([
-        prisma.user.count(),
-        prisma.user.count({ where: { status: UserStatus.PENDING } }),
-        prisma.user.count({ where: { status: UserStatus.ACTIVE } }),
-        prisma.user.count({ where: { status: UserStatus.SUSPENDED } }),
-      ])
-    : null;
+  const [accountStats, projectStats] = await Promise.all([
+    canReadAccounts
+      ? Promise.all([
+          prisma.user.count(),
+          prisma.user.count({ where: { status: UserStatus.PENDING } }),
+          prisma.user.count({ where: { status: UserStatus.ACTIVE } }),
+          prisma.user.count({ where: { status: UserStatus.SUSPENDED } }),
+        ])
+      : Promise.resolve(null),
+    canReadProjects
+      ? projectRepository.getDashboardProjectStats({
+          adminViewAll: isWorkspaceAdmin(actor),
+          userId: actor.userId,
+        })
+      : Promise.resolve(null),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -106,7 +127,62 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        {canReadAccounts ? (
+        {projectStats && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <FolderKanban className="h-5 w-5 text-slate-700" />
+                <CardTitle className="text-base">
+                  Project &amp; Workspace ({projectStats.total})
+                </CardTitle>
+              </div>
+              <CardDescription>
+                {projectStats.createdCount} mới tạo · {projectStats.activeCount} đang ACTIVE ·{" "}
+                {projectStats.archivedCount} đã Archive.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              {projectStats.activeProject ? (
+                <div className="rounded-md border border-emerald-200 bg-emerald-50/70 p-3 text-emerald-950">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                    Project đang ACTIVE
+                  </p>
+                  <p className="mt-0.5 font-semibold">{projectStats.activeProject.name}</p>
+                  <p className="mt-1 text-xs text-emerald-800">
+                    Leader: {projectStats.activeProject.leaderName} ·{" "}
+                    {projectStats.activeProject.activeMemberCount} thành viên ·{" "}
+                    {formatDate(projectStats.activeProject.startDate)} –{" "}
+                    {formatDate(projectStats.activeProject.endDate)}
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-md bg-slate-50 p-3 text-xs text-muted-foreground">
+                  Hiện chưa có Project nào ở trạng thái ACTIVE trong phạm vi của bạn.
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {projectStats.activeProject && (
+                  <Button asChild>
+                    <Link href={`/projects/${projectStats.activeProject.id}`}>
+                      Mở Project ACTIVE
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                )}
+                <Button asChild variant={projectStats.activeProject ? "outline" : "default"}>
+                  <Link href="/projects">Danh sách Project</Link>
+                </Button>
+                {canCreateProject && (
+                  <Button asChild variant="outline">
+                    <Link href="/projects/new">Tạo Project mới</Link>
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {canReadAccounts && (
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -136,18 +212,31 @@ export default async function DashboardPage() {
               </div>
             </CardContent>
           </Card>
-        ) : (
+        )}
+
+        {canManageRoles && (
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-slate-700" />
-                <CardTitle className="text-base">Phạm vi Workspace (Sprint 1)</CardTitle>
+                <Shield className="h-5 w-5 text-slate-700" />
+                <CardTitle className="text-base">Phân quyền &amp; Templates</CardTitle>
               </div>
               <CardDescription>
-                Nền tảng xác thực và kiểm soát truy cập đã sẵn sàng. Các phân hệ Project và Task sẽ
-                được mở khóa ở các Sprint tiếp theo.
+                Cấu hình Ma trận Permission của 4 Role và quản lý các Project Template toàn
+                Workspace.
               </CardDescription>
             </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              <Button asChild variant="outline">
+                <Link href="/admin/roles">
+                  Ma trận Phân quyền
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/admin/templates">Project Templates</Link>
+              </Button>
+            </CardContent>
           </Card>
         )}
       </div>

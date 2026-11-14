@@ -26,9 +26,13 @@ model User {
   approvedById  String?       @db.Uuid
   approvedBy    User?         @relation("UserApprover", fields: [approvedById], references: [id], onDelete: SetNull)
   approvedUsers User[]        @relation("UserApprover")
-  userRoles     UserRole[]
-  activityLogs  ActivityLog[]
-  auditLogs     AuditLog[]
+  userRoles          UserRole[]
+  ledProjects        Project[]       @relation("ProjectLeader")
+  instructedProjects Project[]       @relation("ProjectInstructor")
+  createdProjects    Project[]       @relation("ProjectCreator")
+  projectMemberships ProjectMember[]
+  activityLogs       ActivityLog[]
+  auditLogs          AuditLog[]
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -107,4 +111,75 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@index([createdAt])
+}
+
+enum ProjectStatus {
+  CREATED
+  ACTIVE
+  ARCHIVED
+}
+
+enum ProjectMemberRole {
+  LEADER
+  MEMBER
+  INSTRUCTOR
+}
+
+model ProjectTemplate {
+  id            String    @id @default(uuid()) @db.Uuid
+  name          String    @unique @db.VarChar(150)
+  description   String?   @db.Text
+  configuration Json?
+  isActive      Boolean   @default(true)
+  projects      Project[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([isActive])
+}
+
+model Project {
+  id            String          @id @default(uuid()) @db.Uuid
+  name          String          @db.VarChar(200)
+  description   String?         @db.Text
+  objectives    String?         @db.Text
+  scope         String?         @db.Text
+  startDate     DateTime
+  endDate       DateTime
+  status        ProjectStatus   @default(CREATED)
+  repositoryUrl String?         @db.Text
+  technologies  Json?
+  templateId    String?         @db.Uuid
+  template      ProjectTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  leaderId      String          @db.Uuid
+  leader        User            @relation("ProjectLeader", fields: [leaderId], references: [id], onDelete: Restrict)
+  instructorId  String?         @db.Uuid
+  instructor    User?           @relation("ProjectInstructor", fields: [instructorId], references: [id], onDelete: SetNull)
+  createdById   String          @db.Uuid
+  createdBy     User            @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  members       ProjectMember[]
+  archivedAt    DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([status])
+  @@index([leaderId])
+  @@index([instructorId])
+  @@index([templateId])
+  @@index([createdAt])
+}
+
+model ProjectMember {
+  id          String            @id @default(uuid()) @db.Uuid
+  projectId   String            @db.Uuid
+  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId      String            @db.Uuid
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectRole ProjectMemberRole
+  joinedAt    DateTime          @default(now())
+  leftAt      DateTime?
+
+  @@index([projectId, leftAt])
+  @@index([userId, leftAt])
+  @@index([projectId, userId])
 }

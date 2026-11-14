@@ -3,7 +3,17 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, LogOut, Menu, UserCog, Users, X } from "lucide-react";
+import {
+  FolderKanban,
+  Layers,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Shield,
+  UserCog,
+  Users,
+  X,
+} from "lucide-react";
 import { RoleBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -16,6 +26,7 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   requiredPermission?: string;
+  requiredAnyPermissions?: string[];
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -25,10 +36,28 @@ const NAV_ITEMS: NavItem[] = [
     icon: LayoutDashboard,
   },
   {
+    label: "Dự án (Projects)",
+    href: "/projects",
+    icon: FolderKanban,
+    requiredPermission: PERMISSIONS.PROJECT_READ,
+  },
+  {
+    label: "Project Templates",
+    href: "/admin/templates",
+    icon: Layers,
+    requiredAnyPermissions: [PERMISSIONS.PROJECT_CREATE, PERMISSIONS.ROLE_MANAGE],
+  },
+  {
     label: "Quản lý tài khoản",
     href: "/admin/users",
     icon: Users,
     requiredPermission: PERMISSIONS.ACCOUNT_READ,
+  },
+  {
+    label: "Phân quyền (Roles)",
+    href: "/admin/roles",
+    icon: Shield,
+    requiredPermission: PERMISSIONS.ROLE_MANAGE,
   },
   {
     label: "Hồ sơ cá nhân",
@@ -41,10 +70,18 @@ export function AppShell({ user, children }: { user: AuthContext; children: Reac
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
-  const visibleNavItems = NAV_ITEMS.filter(
-    (item) =>
-      !item.requiredPermission || user.permissions.includes(item.requiredPermission as never)
-  );
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (item.requiredPermission && !user.permissions.includes(item.requiredPermission as never)) {
+      return false;
+    }
+    if (
+      item.requiredAnyPermissions &&
+      !item.requiredAnyPermissions.some((perm) => user.permissions.includes(perm as never))
+    ) {
+      return false;
+    }
+    return true;
+  });
 
   const navContent = (
     <nav className="flex-1 space-y-1 px-3 py-4" aria-label="Điều hướng chính">
@@ -84,7 +121,7 @@ export function AppShell({ user, children }: { user: AuthContext; children: Reac
         </div>
         {navContent}
         <div className="border-t border-border p-4 text-xs text-muted-foreground">
-          Sprint 1 · Foundation &amp; Auth
+          Sprint 2 · RBAC &amp; Projects
         </div>
       </aside>
 

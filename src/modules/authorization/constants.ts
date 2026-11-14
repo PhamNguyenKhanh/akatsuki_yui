@@ -37,6 +37,18 @@ export const PERMISSIONS = {
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 
+/**
+ * Core permissions that must remain granted to the ADMIN role (BR-AUTHZ-008)
+ * so workspace administration and account/project recovery cannot be locked out.
+ */
+export const CORE_ADMIN_PERMISSION_CODES: readonly PermissionCode[] = [
+  PERMISSIONS.ACCOUNT_READ,
+  PERMISSIONS.ACCOUNT_APPROVE,
+  PERMISSIONS.ACCOUNT_MANAGE,
+  PERMISSIONS.ROLE_MANAGE,
+  PERMISSIONS.PROJECT_RESTORE,
+];
+
 export interface PermissionDefinition {
   code: PermissionCode;
   name: string;
