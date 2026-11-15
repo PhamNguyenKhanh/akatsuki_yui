@@ -549,6 +549,7 @@ export const sprintRepository = {
         action: true,
         oldValue: true,
         newValue: true,
+        metadata: true,
         createdAt: true,
       },
     });
@@ -590,11 +591,74 @@ export const sprintRepository = {
 
     const taskIdSet = new Set(tasks.map((t) => t.id));
     const filteredEvents = sprintHistoryEvents.filter((e) => taskIdSet.has(e.taskId));
+    const taskIds = Array.from(taskIdSet);
+
+    const [estimateHistoryEvents, activationLog] = await Promise.all([
+      taskIds.length > 0
+        ? tx.taskHistory.findMany({
+            where: {
+              taskId: { in: taskIds },
+              action: {
+                in: [TaskHistoryAction.CREATED, TaskHistoryAction.INFO_UPDATED],
+              },
+            },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            select: {
+              id: true,
+              taskId: true,
+              action: true,
+              oldValue: true,
+              newValue: true,
+              metadata: true,
+              createdAt: true,
+            },
+          })
+        : Promise.resolve([]),
+      tx.activityLog.findFirst({
+        where: {
+          entityType: "Sprint",
+          entityId: sprint.id,
+          action: "SPRINT_ACTIVATED",
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: {
+          metadata: true,
+        },
+      }),
+    ]);
+
+    let activationBaselineTasks:
+      Array<{ taskId: string; estimateHours: number | null }> | undefined;
+    if (
+      activationLog?.metadata &&
+      typeof activationLog.metadata === "object" &&
+      !Array.isArray(activationLog.metadata)
+    ) {
+      const rawBaselineTasks = (activationLog.metadata as Record<string, unknown>).baselineTasks;
+      if (Array.isArray(rawBaselineTasks)) {
+        activationBaselineTasks = rawBaselineTasks
+          .filter(
+            (item): item is { taskId: string; estimateHours?: unknown } =>
+              typeof item === "object" &&
+              item !== null &&
+              typeof (item as { taskId?: unknown }).taskId === "string"
+          )
+          .map((item) => ({
+            taskId: item.taskId,
+            estimateHours:
+              typeof item.estimateHours === "number" && Number.isFinite(item.estimateHours)
+                ? item.estimateHours
+                : null,
+          }));
+      }
+    }
 
     return {
       sprint,
       tasks,
       historyEvents: filteredEvents,
+      estimateHistoryEvents,
+      activationBaselineTasks,
     };
   },
 };

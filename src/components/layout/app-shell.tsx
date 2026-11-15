@@ -4,9 +4,11 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BarChart3,
   Bell,
   FileText,
   FolderKanban,
+  History,
   Layers,
   LayoutDashboard,
   LogOut,
@@ -56,6 +58,18 @@ const NAV_ITEMS: NavItem[] = [
     href: "/notifications",
     icon: Bell,
     requiredPermission: PERMISSIONS.NOTIFICATION_READ,
+  },
+  {
+    label: "Báo cáo & Phân tích",
+    href: "/reports",
+    icon: BarChart3,
+    requiredPermission: PERMISSIONS.REPORT_READ,
+  },
+  {
+    label: "Lịch sử hoạt động",
+    href: "/activity",
+    icon: History,
+    requiredPermission: PERMISSIONS.ACTIVITY_READ,
   },
   {
     label: "Project Templates",
@@ -143,7 +157,7 @@ export function AppShell({ user, children }: { user: AuthContext; children: Reac
         </div>
         {navContent}
         <div className="border-t border-border p-4 text-xs text-muted-foreground">
-          Sprint 5 · Documents &amp; Notifications
+          Sprint 6 · Dashboard &amp; Reports
         </div>
       </aside>
 

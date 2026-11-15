@@ -98,6 +98,8 @@ model ActivityLog {
   id          String   @id @default(uuid()) @db.Uuid
   userId      String?  @db.Uuid
   user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  projectId   String?  @db.Uuid
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   action      String   @db.VarChar(100)
   entityType  String   @db.VarChar(100)
   entityId    String?  @db.Uuid
@@ -106,7 +108,9 @@ model ActivityLog {
   createdAt   DateTime @default(now())
 
   @@index([entityType, entityId])
-  @@index([createdAt])
+  @@index([projectId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
 }
 
 model AuditLog {
@@ -173,6 +177,7 @@ model Project {
   sprints       Sprint[]
   documents     Document[]
   notifications Notification[]
+  activityLogs  ActivityLog[]
   archivedAt    DateTime?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
@@ -298,6 +303,7 @@ model Task {
   @@index([sprintId, status])
   @@index([projectId, priority])
   @@index([projectId, deadline])
+  @@index([projectId, completedAt])
   @@index([createdById])
 }
 
@@ -343,6 +349,7 @@ model TaskReview {
   reviewedAt    DateTime       @default(now())
 
   @@index([taskId, reviewedAt])
+  @@index([taskId, decision, reviewedAt])
   @@index([reviewerId])
 }
 
@@ -363,6 +370,8 @@ model TaskHistory {
 
   @@index([taskId, createdAt])
   @@index([actorId])
+  @@index([actorId, action, createdAt])
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
 }
 
 enum DocumentCategory {
@@ -477,4 +486,3 @@ model NotificationDelivery {
   @@index([recipientEmail, createdAt(sort: Desc)])
   @@index([createdAt(sort: Desc)])
 }
-

@@ -209,6 +209,7 @@ export async function createDocumentService(
     await tx.activityLog.create({
       data: {
         userId: actor.userId,
+        projectId: record.projectId,
         action: "DOCUMENT_CREATED",
         entityType: "Document",
         entityId: record.id,
@@ -285,6 +286,7 @@ export async function updateDocumentService(
     await tx.activityLog.create({
       data: {
         userId: actor.userId,
+        projectId: record.projectId,
         action: "DOCUMENT_UPDATED",
         entityType: "Document",
         entityId: record.id,
@@ -342,6 +344,7 @@ export async function deleteDocumentService(
     await tx.activityLog.create({
       data: {
         userId: actor.userId,
+        projectId: document.projectId,
         action: "DOCUMENT_SOFT_DELETED",
         entityType: "Document",
         entityId: document.id,

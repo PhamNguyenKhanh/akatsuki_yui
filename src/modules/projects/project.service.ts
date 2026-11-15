@@ -169,6 +169,7 @@ export async function createProjectService(
     await tx.activityLog.create({
       data: {
         userId: actor.userId,
+        projectId: project.id,
         action: "PROJECT_CREATED",
         entityType: "Project",
         entityId: project.id,
@@ -359,6 +360,7 @@ export async function updateProjectService(
     await tx.activityLog.create({
       data: {
         userId: actor.userId,
+        projectId: current.id,
         action: "PROJECT_UPDATED",
         entityType: "Project",
         entityId: current.id,
@@ -440,6 +442,7 @@ export async function activateProjectService(
       await tx.activityLog.create({
         data: {
           userId: actor.userId,
+          projectId: current.id,
           action: "PROJECT_ACTIVATED",
           entityType: "Project",
           entityId: current.id,
@@ -512,6 +515,7 @@ export async function archiveProjectService(
     await tx.activityLog.create({
       data: {
         userId: actor.userId,
+        projectId: current.id,
         action: "PROJECT_ARCHIVED",
         entityType: "Project",
         entityId: current.id,
@@ -595,6 +599,7 @@ export async function restoreProjectService(
       await tx.activityLog.create({
         data: {
           userId: actor.userId,
+          projectId: current.id,
           action: "PROJECT_RESTORED",
           entityType: "Project",
           entityId: current.id,

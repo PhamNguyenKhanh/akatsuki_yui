@@ -2,7 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ProjectStatus } from "@prisma/client";
-import { ArrowLeft, Calendar, ExternalLink, Layers, Target, UserCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  BarChart3,
+  Calendar,
+  ExternalLink,
+  History,
+  Layers,
+  Target,
+  UserCheck,
+} from "lucide-react";
 import { ProjectDetailActions } from "@/components/projects/project-detail-actions";
 import { ProjectMembersPanel } from "@/components/projects/project-members-panel";
 import { ProjectStatusBadge } from "@/components/shared/status-badge";
@@ -57,6 +66,8 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
   const canReadTasks = hasPermission(actor, PERMISSIONS.TASK_READ);
   const canReadSprints = hasPermission(actor, PERMISSIONS.SPRINT_READ);
   const canReadDocuments = hasPermission(actor, PERMISSIONS.DOCUMENT_READ);
+  const canReadReports = hasPermission(actor, PERMISSIONS.REPORT_READ);
+  const canReadActivity = hasPermission(actor, PERMISSIONS.ACTIVITY_READ);
   const canManageSprint = hasPermission(actor, PERMISSIONS.SPRINT_MANAGE) && isAdminOrLeader;
   const canCreateTask =
     hasPermission(actor, PERMISSIONS.TASK_CREATE) &&
@@ -250,6 +261,30 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
           stats={taskStats}
           canCreateTask={canCreateTask}
         />
+      )}
+
+      {(canReadReports || canReadActivity) && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+          <span className="text-sm font-medium text-slate-800">
+            Phân tích &amp; Nhật ký Project:
+          </span>
+          {canReadReports && (
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/projects/${project.id}/reports`}>
+                <BarChart3 className="h-4 w-4" />
+                Báo cáo &amp; Phân tích
+              </Link>
+            </Button>
+          )}
+          {canReadActivity && (
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/activity?projectId=${project.id}`}>
+                <History className="h-4 w-4" />
+                Lịch sử hoạt động
+              </Link>
+            </Button>
+          )}
+        </div>
       )}
 
       {projectSprints && (

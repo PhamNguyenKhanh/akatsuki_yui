@@ -21,6 +21,23 @@ export function isWorkspaceAdmin(actor: AuthContext): boolean {
 }
 
 /**
+ * Builds a Prisma Project filter scoped to Projects readable by the actor (`assertProjectReadAccess` parity).
+ */
+export function buildAccessibleProjectsWhere(actor: AuthContext): Prisma.ProjectWhereInput {
+  if (isWorkspaceAdmin(actor)) {
+    return {};
+  }
+
+  return {
+    OR: [
+      { leaderId: actor.userId },
+      { instructorId: actor.userId },
+      { members: { some: { userId: actor.userId, leftAt: null } } },
+    ],
+  };
+}
+
+/**
  * Verifies whether the authenticated actor can view the specified Project.
  * Workspace Admins have full visibility; non-Admin roles require an active
  * Leader, Instructor, or Member association with the Project.

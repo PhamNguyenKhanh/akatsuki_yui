@@ -350,6 +350,7 @@ export async function completeSprintService(
     await tx.activityLog.create({
       data: {
         userId: actor.userId,
+        projectId: sprint.projectId,
         action: "SPRINT_COMPLETED",
         entityType: "Sprint",
         entityId: sprint.id,

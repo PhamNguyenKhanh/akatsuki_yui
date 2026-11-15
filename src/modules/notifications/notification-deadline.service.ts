@@ -1,27 +1,15 @@
 import "server-only";
 import { NotificationType, ProjectStatus, TaskStatus, UserStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { BUSINESS_TIMEZONE, formatDateKeyInHoChiMinh, formatHcmDateTimeVi } from "@/lib/timezone";
 import { createNotificationsInTransaction } from "@/modules/notifications/notification.service";
 import type {
   CreatedNotificationDispatchHandle,
   CreateTransactionalNotificationInput,
 } from "@/modules/notifications/notification.types";
 
-export const BUSINESS_TIMEZONE = "Asia/Ho_Chi_Minh";
+export { BUSINESS_TIMEZONE, formatDateKeyInHoChiMinh };
 export const DEADLINE_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-/**
- * Formats a Date into `YYYY-MM-DD` in `Asia/Ho_Chi_Minh` (`DEC-039`).
- */
-export function formatDateKeyInHoChiMinh(date: Date = new Date()): string {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: BUSINESS_TIMEZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  return formatter.format(date);
-}
 
 /**
  * Recipient-specific daily deduplication key (`DEC-039`):
@@ -36,14 +24,7 @@ export function buildDeadlineReminderDedupKey(
 }
 
 function formatDeadlineDisplayVi(deadline: Date): string {
-  return new Intl.DateTimeFormat("vi-VN", {
-    timeZone: BUSINESS_TIMEZONE,
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(deadline);
+  return formatHcmDateTimeVi(deadline);
 }
 
 export interface DeadlineReminderBatchResult {

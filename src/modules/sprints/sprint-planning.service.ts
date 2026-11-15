@@ -119,6 +119,7 @@ export async function assignTasksToSprintService(
         sprintId: true,
         title: true,
         status: true,
+        estimateHours: true,
         sprint: {
           select: {
             id: true,
@@ -209,7 +210,11 @@ export async function assignTasksToSprintService(
           action: TaskHistoryAction.SPRINT_ASSIGNED,
           oldValue: { sprintId: null },
           newValue: { sprintId: sprint.id, sprintName: sprint.name },
-          metadata: { source: "PLANNING" },
+          metadata: {
+            source: "PLANNING",
+            sprintStatus: sprint.status,
+            estimateHoursSnapshot: task.estimateHours ?? null,
+          },
         })),
         tx
       );
@@ -217,6 +222,7 @@ export async function assignTasksToSprintService(
       await tx.activityLog.create({
         data: {
           userId: actor.userId,
+          projectId: sprint.projectId,
           action: "SPRINT_TASKS_ASSIGNED",
           entityType: "Sprint",
           entityId: sprint.id,
@@ -307,6 +313,7 @@ export async function moveSprintTaskService(
         sprintId: true,
         title: true,
         status: true,
+        estimateHours: true,
       },
     });
 
@@ -347,7 +354,11 @@ export async function moveSprintTaskService(
           action: TaskHistoryAction.SPRINT_REMOVED,
           oldValue: { sprintId: sourceSprint.id, sprintName: sourceSprint.name },
           newValue: { sprintId: null },
-          metadata: { source: "PLANNING" },
+          metadata: {
+            source: "PLANNING",
+            sprintStatus: sourceSprint.status,
+            estimateHoursSnapshot: task.estimateHours ?? null,
+          },
         },
         tx
       );
@@ -355,6 +366,7 @@ export async function moveSprintTaskService(
       await tx.activityLog.create({
         data: {
           userId: actor.userId,
+          projectId: sourceSprint.projectId,
           action: "SPRINT_TASK_REMOVED",
           entityType: "Sprint",
           entityId: sourceSprint.id,
@@ -410,7 +422,12 @@ export async function moveSprintTaskService(
           action: TaskHistoryAction.SPRINT_MOVED,
           oldValue: { sprintId: sourceSprint.id, sprintName: sourceSprint.name },
           newValue: { sprintId: targetSprint.id, sprintName: targetSprint.name },
-          metadata: { source: "PLANNING" },
+          metadata: {
+            source: "PLANNING",
+            sourceSprintStatus: sourceSprint.status,
+            targetSprintStatus: targetSprint.status,
+            estimateHoursSnapshot: task.estimateHours ?? null,
+          },
         },
         tx
       );
@@ -418,6 +435,7 @@ export async function moveSprintTaskService(
       await tx.activityLog.create({
         data: {
           userId: actor.userId,
+          projectId: sourceSprint.projectId,
           action: "SPRINT_TASK_MOVED",
           entityType: "Sprint",
           entityId: sourceSprint.id,

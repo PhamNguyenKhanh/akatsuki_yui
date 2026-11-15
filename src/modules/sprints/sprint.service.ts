@@ -127,6 +127,7 @@ export async function createSprintService(
     await tx.activityLog.create({
       data: {
         userId: actor.userId,
+        projectId: validProjectId,
         action: "SPRINT_CREATED",
         entityType: "Sprint",
         entityId: created.id,
@@ -290,6 +291,7 @@ export async function updateSprintService(
       await tx.activityLog.create({
         data: {
           userId: actor.userId,
+          projectId: current.projectId,
           action: "SPRINT_UPDATED",
           entityType: "Sprint",
           entityId: current.id,
@@ -382,9 +384,26 @@ export async function activateSprintService(
       );
     }
 
+    const baselineTasks = await tx.task.findMany({
+      where: {
+        sprintId: current.id,
+      },
+      select: {
+        id: true,
+        estimateHours: true,
+      },
+      orderBy: { id: "asc" },
+    });
+
+    const baselineEstimateHours = baselineTasks.reduce(
+      (sum, task) => sum + (task.estimateHours ?? 0),
+      0
+    );
+
     await tx.activityLog.create({
       data: {
         userId: actor.userId,
+        projectId: current.projectId,
         action: "SPRINT_ACTIVATED",
         entityType: "Sprint",
         entityId: current.id,
@@ -392,6 +411,13 @@ export async function activateSprintService(
         metadata: {
           projectId: current.projectId,
           activatedAt: now.toISOString(),
+          baselineTaskIds: baselineTasks.map((task) => task.id),
+          baselineTasks: baselineTasks.map((task) => ({
+            taskId: task.id,
+            estimateHours: task.estimateHours ?? null,
+          })),
+          baselineTaskCount: baselineTasks.length,
+          baselineEstimateHours: Math.round(baselineEstimateHours * 100) / 100,
         },
       },
     });
@@ -531,6 +557,7 @@ export async function cancelSprintService(
     await tx.activityLog.create({
       data: {
         userId: actor.userId,
+        projectId: current.projectId,
         action: "SPRINT_CANCELLED",
         entityType: "Sprint",
         entityId: current.id,

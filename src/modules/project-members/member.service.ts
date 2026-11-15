@@ -149,6 +149,7 @@ export async function addProjectMemberService(
       await tx.activityLog.create({
         data: {
           userId: actor.userId,
+          projectId: project.id,
           action: "PROJECT_MEMBER_ADDED",
           entityType: "Project",
           entityId: project.id,
@@ -269,6 +270,7 @@ export async function changeProjectLeaderService(
     await tx.activityLog.create({
       data: {
         userId: actor.userId,
+        projectId: project.id,
         action: "PROJECT_LEADER_CHANGED",
         entityType: "Project",
         entityId: project.id,
@@ -389,6 +391,7 @@ export async function removeProjectMemberService(
     await tx.activityLog.create({
       data: {
         userId: actor.userId,
+        projectId: project.id,
         action: "PROJECT_MEMBER_REMOVED",
         entityType: "Project",
         entityId: project.id,
