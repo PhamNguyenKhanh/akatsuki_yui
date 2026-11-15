@@ -56,9 +56,15 @@ describe("Sprint 1 PostgreSQL Integration Tests", () => {
     const [roleCount, permCount, seedAdmin] = await Promise.all([
       prisma.role.count(),
       prisma.permission.count(),
-      prisma.user.findUnique({
-        where: { email: process.env.SEED_ADMIN_EMAIL?.toLowerCase() ?? "pnk1590@gmail.com" },
+      prisma.user.findFirst({
+        where: process.env.SEED_ADMIN_EMAIL?.trim()
+          ? { email: process.env.SEED_ADMIN_EMAIL.trim().toLowerCase() }
+          : {
+              status: UserStatus.ACTIVE,
+              userRoles: { some: { role: { name: ROLES.ADMIN } } },
+            },
         include: { userRoles: { include: { role: true } } },
+        orderBy: { createdAt: "asc" },
       }),
     ]);
 
