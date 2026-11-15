@@ -10,6 +10,8 @@
 
 # Testing
 /coverage
+/playwright-report
+/test-results
 
 # Next.js
 /.next/
@@ -42,3 +44,15 @@ next-env.d.ts
 # Python cache
 __pycache__/
 *.pyc
+
+# Skill
+/agent*/
+/.skills*/
+/.gemini*/
+
+# Local docs, plans, and reports (never push to git)
+/docs/
+/markdown/
+/report/
+/*-IMPLEMENTATION-PLAN.md
+/*-IMPLEMENTATION-REPORT.md

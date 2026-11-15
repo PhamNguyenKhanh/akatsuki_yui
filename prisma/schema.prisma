@@ -16,21 +16,37 @@ enum UserStatus {
 }
 
 model User {
-  id            String        @id @default(uuid()) @db.Uuid
-  email         String        @unique @db.VarChar(255)
-  passwordHash  String        @db.VarChar(255)
-  fullName      String        @db.VarChar(150)
-  avatarUrl     String?       @db.Text
-  status        UserStatus    @default(PENDING)
-  approvedAt    DateTime?
-  approvedById  String?       @db.Uuid
-  approvedBy    User?         @relation("UserApprover", fields: [approvedById], references: [id], onDelete: SetNull)
-  approvedUsers User[]        @relation("UserApprover")
-  userRoles     UserRole[]
-  activityLogs  ActivityLog[]
-  auditLogs     AuditLog[]
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id                   String           @id @default(uuid()) @db.Uuid
+  email                String           @unique @db.VarChar(255)
+  passwordHash         String           @db.VarChar(255)
+  fullName             String           @db.VarChar(150)
+  avatarUrl            String?          @db.Text
+  status               UserStatus       @default(PENDING)
+  tokenVersion         Int              @default(0)
+  approvedAt           DateTime?
+  approvedById         String?          @db.Uuid
+  approvedBy           User?            @relation("UserApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedUsers        User[]           @relation("UserApprover")
+  userRoles            UserRole[]
+  ledProjects          Project[]        @relation("ProjectLeader")
+  instructedProjects   Project[]        @relation("ProjectInstructor")
+  createdProjects      Project[]        @relation("ProjectCreator")
+  projectMemberships   ProjectMember[]
+  createdTasks         Task[]           @relation("TaskCreator")
+  createdSprints       Sprint[]         @relation("SprintCreator")
+  taskAssignments      TaskAssignee[]   @relation("TaskAssigneeUser")
+  assignedTasks        TaskAssignee[]   @relation("TaskAssigneeAssigner")
+  createdDependencies  TaskDependency[] @relation("TaskDependencyCreator")
+  submittedTaskReviews TaskReview[]     @relation("TaskReviewSubmitter")
+  reviewedTasks        TaskReview[]     @relation("TaskReviewReviewer")
+  taskHistoryEntries   TaskHistory[]    @relation("TaskHistoryActor")
+  uploadedDocuments    Document[]       @relation("DocumentUploadedBy")
+  notifications        Notification[]   @relation("NotificationRecipient")
+  actedNotifications   Notification[]   @relation("NotificationActor")
+  activityLogs         ActivityLog[]
+  auditLogs            AuditLog[]
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
 
   @@index([status])
   @@index([createdAt])
@@ -83,6 +99,8 @@ model ActivityLog {
   id          String   @id @default(uuid()) @db.Uuid
   userId      String?  @db.Uuid
   user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  projectId   String?  @db.Uuid
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   action      String   @db.VarChar(100)
   entityType  String   @db.VarChar(100)
   entityId    String?  @db.Uuid
@@ -91,7 +109,9 @@ model ActivityLog {
   createdAt   DateTime @default(now())
 
   @@index([entityType, entityId])
-  @@index([createdAt])
+  @@index([projectId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
 }
 
 model AuditLog {
@@ -106,5 +126,384 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+enum ProjectStatus {
+  CREATED
+  ACTIVE
+  ARCHIVED
+}
+
+enum ProjectMemberRole {
+  LEADER
+  MEMBER
+  INSTRUCTOR
+}
+
+model ProjectTemplate {
+  id            String    @id @default(uuid()) @db.Uuid
+  name          String    @unique @db.VarChar(150)
+  description   String?   @db.Text
+  configuration Json?
+  isActive      Boolean   @default(true)
+  projects      Project[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([isActive])
+}
+
+model Project {
+  id            String           @id @default(uuid()) @db.Uuid
+  name          String           @db.VarChar(200)
+  description   String?          @db.Text
+  objectives    String?          @db.Text
+  scope         String?          @db.Text
+  startDate     DateTime
+  endDate       DateTime
+  status        ProjectStatus    @default(CREATED)
+  repositoryUrl String?          @db.Text
+  technologies  Json?
+  templateId    String?          @db.Uuid
+  template      ProjectTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  leaderId      String           @db.Uuid
+  leader        User             @relation("ProjectLeader", fields: [leaderId], references: [id], onDelete: Restrict)
+  instructorId  String?          @db.Uuid
+  instructor    User?            @relation("ProjectInstructor", fields: [instructorId], references: [id], onDelete: SetNull)
+  createdById   String           @db.Uuid
+  createdBy     User             @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  members       ProjectMember[]
+  tasks         Task[]
+  sprints       Sprint[]
+  documents     Document[]
+  notifications Notification[]
+  activityLogs  ActivityLog[]
+  archivedAt    DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([status])
+  @@index([leaderId])
+  @@index([instructorId])
+  @@index([templateId])
+  @@index([createdAt])
+}
+
+model ProjectMember {
+  id          String            @id @default(uuid()) @db.Uuid
+  projectId   String            @db.Uuid
+  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId      String            @db.Uuid
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectRole ProjectMemberRole
+  joinedAt    DateTime          @default(now())
+  leftAt      DateTime?
+
+  @@index([projectId, leftAt])
+  @@index([userId, leftAt])
+  @@index([projectId, userId])
+}
+
+enum SprintStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model Sprint {
+  id          String       @id @default(uuid()) @db.Uuid
+  projectId   String       @db.Uuid
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdById String       @db.Uuid
+  createdBy   User         @relation("SprintCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  name        String       @db.VarChar(150)
+  goal        String?      @db.Text
+  startDate   DateTime     @db.Date
+  endDate     DateTime     @db.Date
+  status      SprintStatus @default(PLANNED)
+  activatedAt DateTime?
+  completedAt DateTime?
+  cancelledAt DateTime?
+  tasks       Task[]
+  documents   Document[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([projectId, id])
+  @@index([projectId, status])
+  @@index([projectId, startDate, endDate])
+  @@index([createdById])
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ReviewDecision {
+  APPROVED
+  REJECTED
+}
+
+enum TaskHistoryAction {
+  CREATED
+  INFO_UPDATED
+  PROGRESS_UPDATED
+  ASSIGNEE_ADDED
+  ASSIGNEE_REMOVED
+  STATUS_CHANGED
+  REVIEW_SUBMITTED
+  REVIEW_APPROVED
+  REVIEW_REJECTED
+  DEPENDENCY_ADDED
+  DEPENDENCY_REMOVED
+  SPRINT_ASSIGNED
+  SPRINT_REMOVED
+  SPRINT_MOVED
+}
+
+model Task {
+  id             String           @id @default(uuid()) @db.Uuid
+  projectId      String           @db.Uuid
+  project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sprintId       String?          @db.Uuid
+  sprint         Sprint?          @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  createdById    String           @db.Uuid
+  createdBy      User             @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  title          String           @db.VarChar(200)
+  description    String?          @db.Text
+  priority       TaskPriority     @default(MEDIUM)
+  status         TaskStatus       @default(TODO)
+  startDate      DateTime?
+  deadline       DateTime
+  estimateHours  Float?
+  referenceLinks Json?
+  progressNotes  String?          @db.Text
+  completedAt    DateTime?
+  assignees      TaskAssignee[]
+  dependencies   TaskDependency[] @relation("TaskDependencies")
+  dependents     TaskDependency[] @relation("TaskDependents")
+  reviews        TaskReview[]
+  history        TaskHistory[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([projectId, status])
+  @@index([projectId, sprintId, status])
+  @@index([sprintId, status])
+  @@index([projectId, priority])
+  @@index([projectId, deadline])
+  @@index([projectId, completedAt])
+  @@index([createdById])
+}
+
+model TaskAssignee {
+  id           String    @id @default(uuid()) @db.Uuid
+  taskId       String    @db.Uuid
+  task         Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId       String    @db.Uuid
+  user         User      @relation("TaskAssigneeUser", fields: [userId], references: [id], onDelete: Restrict)
+  assignedById String    @db.Uuid
+  assignedBy   User      @relation("TaskAssigneeAssigner", fields: [assignedById], references: [id], onDelete: Restrict)
+  assignedAt   DateTime  @default(now())
+  removedAt    DateTime?
+
+  @@index([userId, removedAt])
+  @@index([taskId, removedAt])
+}
+
+model TaskDependency {
+  id              String   @id @default(uuid()) @db.Uuid
+  taskId          String   @db.Uuid
+  task            Task     @relation("TaskDependencies", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOnTaskId String   @db.Uuid
+  dependsOnTask   Task     @relation("TaskDependents", fields: [dependsOnTaskId], references: [id], onDelete: Cascade)
+  createdById     String   @db.Uuid
+  createdBy       User     @relation("TaskDependencyCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt       DateTime @default(now())
+
+  @@unique([taskId, dependsOnTaskId])
+  @@index([dependsOnTaskId])
+}
+
+model TaskReview {
+  id            String         @id @default(uuid()) @db.Uuid
+  taskId        String         @db.Uuid
+  task          Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  submittedById String?        @db.Uuid
+  submittedBy   User?          @relation("TaskReviewSubmitter", fields: [submittedById], references: [id], onDelete: Restrict)
+  reviewerId    String         @db.Uuid
+  reviewer      User           @relation("TaskReviewReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+  decision      ReviewDecision
+  reason        String         @db.Text
+  reviewedAt    DateTime       @default(now())
+
+  @@index([taskId, reviewedAt])
+  @@index([taskId, decision, reviewedAt])
+  @@index([reviewerId])
+}
+
+model TaskHistory {
+  id         String            @id @default(uuid()) @db.Uuid
+  taskId     String            @db.Uuid
+  task       Task              @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actorId    String            @db.Uuid
+  actor      User              @relation("TaskHistoryActor", fields: [actorId], references: [id], onDelete: Restrict)
+  action     TaskHistoryAction
+  fromStatus TaskStatus?
+  toStatus   TaskStatus?
+  reason     String?           @db.Text
+  oldValue   Json?
+  newValue   Json?
+  metadata   Json?
+  createdAt  DateTime          @default(now())
+
+  @@index([taskId, createdAt])
+  @@index([actorId])
+  @@index([actorId, action, createdAt])
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
+}
+
+enum DocumentCategory {
+  SPECIFICATION
+  DESIGN
+  REPORT
+  OTHER
+}
+
+enum NotificationType {
+  ACCOUNT_REGISTERED
+  ACCOUNT_APPROVED
+  ACCOUNT_REJECTED
+  TASK_ASSIGNED
+  TASK_SUBMITTED_FOR_REVIEW
+  TASK_REVIEW_APPROVED
+  TASK_REVIEW_REJECTED
+  PROJECT_MEMBER_ADDED
+  PROJECT_MEMBER_REMOVED
+  PROJECT_LEADER_CHANGED
+  TASK_DEADLINE_REMINDER
+  SYSTEM
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  UNKNOWN
+}
+
+model Document {
+  id           String           @id @default(uuid()) @db.Uuid
+  projectId    String           @db.Uuid
+  sprintId     String?          @db.Uuid
+  uploadedById String           @db.Uuid
+  title        String           @db.VarChar(200)
+  url          String           @db.VarChar(1000)
+  category     DocumentCategory @default(OTHER)
+  description  String?          @db.Text
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  deletedAt    DateTime?
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  sprint     Sprint? @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  uploadedBy User    @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([projectId, deletedAt, category, createdAt])
+  @@index([sprintId, deletedAt])
+  @@index([uploadedById])
+}
+
+model Notification {
+  id         String           @id @default(uuid()) @db.Uuid
+  userId     String           @db.Uuid
+  actorId    String?          @db.Uuid
+  projectId  String?          @db.Uuid
+  type       NotificationType
+  title      String           @db.VarChar(255)
+  message    String           @db.Text
+  targetUrl  String?          @db.VarChar(500)
+  entityType String           @db.VarChar(50)
+  entityId   String           @db.Uuid
+  metadata   Json?
+  dedupKey   String?          @db.VarChar(200)
+  isRead     Boolean          @default(false)
+  readAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  user       User                   @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor      User?                  @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  project    Project?               @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  deliveries NotificationDelivery[]
+
+  @@unique([userId, dedupKey])
+  @@index([userId, isRead, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([projectId])
+  @@index([type, createdAt])
+}
+
+model NotificationDelivery {
+  id                String                     @id @default(uuid()) @db.Uuid
+  notificationId    String                     @db.Uuid
+  channel           NotificationChannel        @default(EMAIL)
+  recipientEmail    String                     @db.VarChar(255)
+  status            NotificationDeliveryStatus @default(PENDING)
+  provider          String                     @default("SMTP") @db.VarChar(50)
+  providerMessageId String?                    @db.VarChar(255)
+  retryCount        Int                        @default(0)
+  lastAttemptAt     DateTime?
+  nextRetryAt       DateTime?
+  lockedAt          DateTime?
+  lockToken         String?                    @db.VarChar(100)
+  sentAt            DateTime?
+  failedAt          DateTime?
+  errorCode         String?                    @db.VarChar(100)
+  errorMessage      String?                    @db.Text
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, channel])
+  @@index([status, nextRetryAt])
+  @@index([status, lockedAt])
+  @@index([recipientEmail, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+}
+
+model RateLimitEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  keyHash   String   @db.VarChar(64)
+  scope     String   @db.VarChar(50)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([keyHash, createdAt])
+  @@index([expiresAt])
+}
+
+model SmtpQuotaAttempt {
+  id         String   @id @default(uuid()) @db.Uuid
+  deliveryId String?  @db.Uuid
+  createdAt  DateTime @default(now())
+
   @@index([createdAt])
 }

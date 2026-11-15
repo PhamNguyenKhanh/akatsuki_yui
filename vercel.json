@@ -1,0 +1,9 @@
+{
+  "regions": ["sin1"],
+  "crons": [
+    {
+      "path": "/api/internal/notifications/process",
+      "schedule": "0 1 * * *"
+    }
+  ]
+}

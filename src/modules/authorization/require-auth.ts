@@ -17,7 +17,9 @@ export async function requireActiveUser(): Promise<AuthContext> {
   if (!session?.user?.id) {
     throw unauthorizedError("Vui lòng đăng nhập để tiếp tục.", "AUTH_REQUIRED");
   }
-  return loadTrustedAuthContext(session.user.id);
+  return loadTrustedAuthContext(session.user.id, {
+    expectedTokenVersion: typeof session.user.tokenVersion === "number" ? session.user.tokenVersion : -1,
+  });
 }
 
 export async function requirePermission(permission: PermissionCode): Promise<AuthContext> {
@@ -38,9 +40,15 @@ export async function getOptionalAuthContext(): Promise<AuthContext | null> {
     return null;
   }
   try {
-    return await loadTrustedAuthContext(session.user.id);
-  } catch {
-    return null;
+    return await loadTrustedAuthContext(session.user.id, {
+      expectedTokenVersion:
+        typeof session.user.tokenVersion === "number" ? session.user.tokenVersion : -1,
+    });
+  } catch (error) {
+    if (isAppError(error)) {
+      return null;
+    }
+    throw error;
   }
 }
 
@@ -54,7 +62,9 @@ export async function requireActiveUserOrRedirect(): Promise<AuthContext> {
   let failureCode: string | null = null;
 
   try {
-    context = await loadTrustedAuthContext(session.user.id);
+    context = await loadTrustedAuthContext(session.user.id, {
+      expectedTokenVersion: typeof session.user.tokenVersion === "number" ? session.user.tokenVersion : -1,
+    });
   } catch (error) {
     if (isAppError(error)) {
       failureCode = error.code;

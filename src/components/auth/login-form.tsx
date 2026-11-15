@@ -18,15 +18,9 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getSafeCallbackUrl } from "@/lib/safe-redirect";
 import { loginAction } from "@/modules/auth/auth.actions";
 import { loginSchema, type LoginInput } from "@/modules/auth/auth.schema";
-
-function getSafeCallbackUrl(rawUrl?: string): string {
-  if (!rawUrl || !rawUrl.startsWith("/") || rawUrl.startsWith("//")) {
-    return "/dashboard";
-  }
-  return rawUrl;
-}
 
 export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
   const router = useRouter();

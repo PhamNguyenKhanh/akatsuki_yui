@@ -1,11 +1,15 @@
 import "server-only";
 import { UserStatus } from "@prisma/client";
+import { acquireAdvisoryXactLock } from "@/lib/db-locks";
 import { badRequestError, conflictError, forbiddenError, notFoundError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
+import { RATE_LIMIT_SCOPES, consumeRateLimit, getRequestClientIp } from "@/lib/rate-limit";
 import { PERMISSIONS, ROLES, type RoleName } from "@/modules/authorization/constants";
 import { assertPermission, hasPermission } from "@/modules/authorization/policy.service";
+import { schedulePostCommitEmailDispatch } from "@/modules/notifications/notification-delivery.service";
+import { recordAccountStatusDecisionNotifications } from "@/modules/notifications/notification-domain-events";
 import { mapUserToSafeDTO, safeUserSelect, userRepository } from "@/modules/users/user.repository";
 import { uuidSchema } from "@/lib/validations/common";
 import {
@@ -113,6 +117,8 @@ export async function updateAccountStatusService(
   }
 
   const updated = await prisma.$transaction(async (tx) => {
+    await acquireAdvisoryXactLock(tx, "user:admin_role_guard");
+
     const target = await tx.user.findUnique({
       where: { id: validUserId },
       select: safeUserSelect,
@@ -136,10 +142,12 @@ export async function updateAccountStatusService(
     }
 
     const isApprovalStep = action === "APPROVE" || action === "REJECT";
+    const shouldRevokeSessions = action === "SUSPEND" || action === "REJECT";
     const saved = await tx.user.update({
       where: { id: target.id },
       data: {
         status: nextStatus,
+        ...(shouldRevokeSessions ? { tokenVersion: { increment: 1 } } : {}),
         ...(isApprovalStep
           ? {
               approvedAt: new Date(),
@@ -171,17 +179,27 @@ export async function updateAccountStatusService(
       },
     });
 
-    return saved;
+    const handles = await recordAccountStatusDecisionNotifications(tx, {
+      actorId: actor.userId,
+      targetUserId: target.id,
+      targetUserEmail: target.email,
+      targetUserFullName: target.fullName,
+      action,
+    });
+
+    return { saved, notificationHandles: handles };
   });
+
+  await schedulePostCommitEmailDispatch(updated.notificationHandles);
 
   logger.info("Account status updated", {
     actorId: actor.userId,
     targetUserId,
     action,
-    nextStatus: updated.status,
+    nextStatus: updated.saved.status,
   });
 
-  return mapUserToSafeDTO(updated);
+  return mapUserToSafeDTO(updated.saved);
 }
 
 export async function assignUserRoleService(
@@ -194,6 +212,8 @@ export async function assignUserRoleService(
   const { roleName } = assignUserRoleSchema.parse(rawPayload);
 
   const updated = await prisma.$transaction(async (tx) => {
+    await acquireAdvisoryXactLock(tx, "user:admin_role_guard");
+
     const target = await tx.user.findUnique({
       where: { id: validUserId },
       select: safeUserSelect,
@@ -236,8 +256,11 @@ export async function assignUserRoleService(
       },
     });
 
-    const refreshed = await tx.user.findUniqueOrThrow({
+    const refreshed = await tx.user.update({
       where: { id: target.id },
+      data: {
+        tokenVersion: { increment: 1 },
+      },
       select: safeUserSelect,
     });
 
@@ -313,8 +336,15 @@ export async function updateMyProfileService(
 
 export async function changeMyPasswordService(
   actor: AuthContext,
-  rawPayload: ChangePasswordInput
+  rawPayload: ChangePasswordInput,
+  options?: { headers?: Headers | null }
 ): Promise<void> {
+  const clientIp = await getRequestClientIp(options?.headers);
+  await consumeRateLimit({
+    scope: RATE_LIMIT_SCOPES.AUTH_PASSWORD_CHANGE_USER,
+    identifier: `${actor.userId}:${clientIp}`,
+  });
+
   const input = changePasswordSchema.parse(rawPayload);
 
   const authRow = await userRepository.findPasswordHashById(actor.userId);
@@ -334,7 +364,10 @@ export async function changeMyPasswordService(
   await prisma.$transaction(async (tx) => {
     await tx.user.update({
       where: { id: actor.userId },
-      data: { passwordHash: nextHash },
+      data: {
+        passwordHash: nextHash,
+        tokenVersion: { increment: 1 },
+      },
     });
 
     await tx.auditLog.create({

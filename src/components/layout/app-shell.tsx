@@ -3,7 +3,23 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, LogOut, Menu, UserCog, Users, X } from "lucide-react";
+import {
+  BarChart3,
+  Bell,
+  FileText,
+  FolderKanban,
+  History,
+  Layers,
+  LayoutDashboard,
+  LogOut,
+  MailCheck,
+  Menu,
+  Shield,
+  UserCog,
+  Users,
+  X,
+} from "lucide-react";
+import { NotificationBell } from "@/components/features/notifications/notification-bell";
 import { RoleBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -16,6 +32,7 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   requiredPermission?: string;
+  requiredAnyPermissions?: string[];
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -25,10 +42,58 @@ const NAV_ITEMS: NavItem[] = [
     icon: LayoutDashboard,
   },
   {
+    label: "Dự án (Projects)",
+    href: "/projects",
+    icon: FolderKanban,
+    requiredPermission: PERMISSIONS.PROJECT_READ,
+  },
+  {
+    label: "Tài liệu (Documents)",
+    href: "/documents",
+    icon: FileText,
+    requiredPermission: PERMISSIONS.DOCUMENT_READ,
+  },
+  {
+    label: "Thông báo (Notifications)",
+    href: "/notifications",
+    icon: Bell,
+    requiredPermission: PERMISSIONS.NOTIFICATION_READ,
+  },
+  {
+    label: "Báo cáo & Phân tích",
+    href: "/reports",
+    icon: BarChart3,
+    requiredPermission: PERMISSIONS.REPORT_READ,
+  },
+  {
+    label: "Lịch sử hoạt động",
+    href: "/activity",
+    icon: History,
+    requiredPermission: PERMISSIONS.ACTIVITY_READ,
+  },
+  {
+    label: "Project Templates",
+    href: "/admin/templates",
+    icon: Layers,
+    requiredAnyPermissions: [PERMISSIONS.PROJECT_TEMPLATE_MANAGE],
+  },
+  {
     label: "Quản lý tài khoản",
     href: "/admin/users",
     icon: Users,
     requiredPermission: PERMISSIONS.ACCOUNT_READ,
+  },
+  {
+    label: "Phân quyền (Roles)",
+    href: "/admin/roles",
+    icon: Shield,
+    requiredPermission: PERMISSIONS.ROLE_MANAGE,
+  },
+  {
+    label: "Lịch sử gửi Email",
+    href: "/admin/notifications/deliveries",
+    icon: MailCheck,
+    requiredPermission: PERMISSIONS.NOTIFICATION_DELIVERY_READ,
   },
   {
     label: "Hồ sơ cá nhân",
@@ -37,14 +102,30 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-export function AppShell({ user, children }: { user: AuthContext; children: React.ReactNode }) {
+export function AppShell({
+  user,
+  initialUnreadCount = 0,
+  children,
+}: {
+  user: AuthContext;
+  initialUnreadCount?: number;
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
-  const visibleNavItems = NAV_ITEMS.filter(
-    (item) =>
-      !item.requiredPermission || user.permissions.includes(item.requiredPermission as never)
-  );
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (item.requiredPermission && !user.permissions.includes(item.requiredPermission as never)) {
+      return false;
+    }
+    if (
+      item.requiredAnyPermissions &&
+      !item.requiredAnyPermissions.some((perm) => user.permissions.includes(perm as never))
+    ) {
+      return false;
+    }
+    return true;
+  });
 
   const navContent = (
     <nav className="flex-1 space-y-1 px-3 py-4" aria-label="Điều hướng chính">
@@ -84,7 +165,7 @@ export function AppShell({ user, children }: { user: AuthContext; children: Reac
         </div>
         {navContent}
         <div className="border-t border-border p-4 text-xs text-muted-foreground">
-          Sprint 1 · Foundation &amp; Auth
+          Akatsuki Yui · MVP v1.0
         </div>
       </aside>
 
@@ -130,6 +211,9 @@ export function AppShell({ user, children }: { user: AuthContext; children: Reac
           </div>
 
           <div className="flex items-center gap-3">
+            {user.permissions.includes(PERMISSIONS.NOTIFICATION_READ) && (
+              <NotificationBell initialUnreadCount={initialUnreadCount} />
+            )}
             <div className="hidden items-center gap-2 sm:flex">
               <Link
                 href="/profile"

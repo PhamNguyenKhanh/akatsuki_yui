@@ -5,12 +5,20 @@ import { logger } from "@/lib/logger";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import {
+  RATE_LIMIT_SCOPES,
+  consumeRateLimit,
+  getRequestClientIp,
+  runWithRateLimitContext,
+} from "@/lib/rate-limit";
+import {
   loginSchema,
   registerSchema,
   type LoginInput,
   type RegisterInput,
 } from "@/modules/auth/auth.schema";
 import { ROLES, type RoleName } from "@/modules/authorization/constants";
+import { schedulePostCommitEmailDispatch } from "@/modules/notifications/notification-delivery.service";
+import { recordAccountRegisteredNotifications } from "@/modules/notifications/notification-domain-events";
 import { mapUserToSafeDTO, safeUserSelect, userRepository } from "@/modules/users/user.repository";
 import type { SafeUserDTO } from "@/types/auth";
 
@@ -19,63 +27,83 @@ export interface AuthenticatedCredentialsUser {
   email: string;
   fullName: string;
   status: UserStatus;
+  tokenVersion: number;
   roles: RoleName[];
 }
 
-export async function registerAccount(rawInput: RegisterInput): Promise<SafeUserDTO> {
-  const input = registerSchema.parse(rawInput);
+export async function registerAccount(
+  rawInput: RegisterInput,
+  options?: { headers?: Headers | null }
+): Promise<SafeUserDTO> {
+  return runWithRateLimitContext(async () => {
+    const clientIp = await getRequestClientIp(options?.headers);
+    await consumeRateLimit({
+      scope: RATE_LIMIT_SCOPES.AUTH_REGISTER_IP,
+      identifier: clientIp,
+    });
 
-  const existing = await userRepository.findByEmail(input.email);
-  if (existing) {
-    throw conflictError("EMAIL_ALREADY_EXISTS", "Email đã được sử dụng bởi tài khoản khác.");
-  }
+    const input = registerSchema.parse(rawInput);
 
-  const defaultRole = await prisma.role.findUnique({
-    where: { name: ROLES.MEMBER },
-    select: { id: true },
-  });
+    const existing = await userRepository.findByEmail(input.email);
+    if (existing) {
+      throw conflictError("EMAIL_ALREADY_EXISTS", "Email đã được sử dụng bởi tài khoản khác.");
+    }
 
-  if (!defaultRole) {
-    throw new Error("Default MEMBER role is missing. Run database seed first.");
-  }
+    const defaultRole = await prisma.role.findUnique({
+      where: { name: ROLES.MEMBER },
+      select: { id: true },
+    });
 
-  const passwordHash = await hashPassword(input.password);
+    if (!defaultRole) {
+      throw new Error("Default MEMBER role is missing. Run database seed first.");
+    }
 
-  const createdUser = await prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({
-      data: {
-        email: input.email,
-        fullName: input.fullName,
-        passwordHash,
-        status: UserStatus.PENDING,
-        userRoles: {
-          create: {
-            roleId: defaultRole.id,
+    const passwordHash = await hashPassword(input.password);
+
+    const { user: createdUser, notificationHandles } = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: input.email,
+          fullName: input.fullName,
+          passwordHash,
+          status: UserStatus.PENDING,
+          userRoles: {
+            create: {
+              roleId: defaultRole.id,
+            },
           },
         },
-      },
-      select: safeUserSelect,
+        select: safeUserSelect,
+      });
+
+      await tx.activityLog.create({
+        data: {
+          userId: user.id,
+          action: "USER_REGISTERED",
+          entityType: "User",
+          entityId: user.id,
+          description: `Tài khoản ${user.email} đã đăng ký và đang chờ phê duyệt.`,
+        },
+      });
+
+      const handles = await recordAccountRegisteredNotifications(tx, {
+        newUserId: user.id,
+        newUserEmail: user.email,
+        newUserFullName: user.fullName,
+      });
+
+      return { user, notificationHandles: handles };
     });
 
-    await tx.activityLog.create({
-      data: {
-        userId: user.id,
-        action: "USER_REGISTERED",
-        entityType: "User",
-        entityId: user.id,
-        description: `Tài khoản ${user.email} đã đăng ký và đang chờ phê duyệt.`,
-      },
+    await schedulePostCommitEmailDispatch(notificationHandles);
+
+    logger.info("User registered with PENDING status", {
+      userId: createdUser.id,
+      email: createdUser.email,
     });
 
-    return user;
+    return mapUserToSafeDTO(createdUser);
   });
-
-  logger.info("User registered with PENDING status", {
-    userId: createdUser.id,
-    email: createdUser.email,
-  });
-
-  return mapUserToSafeDTO(createdUser);
 }
 
 export async function authenticateCredentials(
@@ -126,6 +154,7 @@ export async function authenticateCredentials(
     email: user.email,
     fullName: user.fullName,
     status: user.status,
+    tokenVersion: user.tokenVersion,
     roles: user.userRoles.map((ur) => ur.role.name as RoleName),
   };
 }

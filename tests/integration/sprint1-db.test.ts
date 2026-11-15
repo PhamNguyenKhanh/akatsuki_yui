@@ -28,6 +28,11 @@ function testEmail(prefix: string) {
 describe("Sprint 1 PostgreSQL Integration Tests", () => {
   afterAll(async () => {
     if (createdUserIds.length > 0 || createdEmails.length > 0) {
+      await prisma.notification.deleteMany({
+        where: {
+          OR: [{ userId: { in: createdUserIds } }, { actorId: { in: createdUserIds } }],
+        },
+      });
       await prisma.auditLog.deleteMany({
         where: {
           OR: [{ entityId: { in: createdUserIds } }, { actorId: { in: createdUserIds } }],
@@ -47,18 +52,24 @@ describe("Sprint 1 PostgreSQL Integration Tests", () => {
     await prisma.$disconnect();
   });
 
-  it("verifies seeded roles, 25 permissions, and seeded active Admin account", async () => {
+  it("verifies seeded roles, 28 permissions, and seeded active Admin account", async () => {
     const [roleCount, permCount, seedAdmin] = await Promise.all([
       prisma.role.count(),
       prisma.permission.count(),
-      prisma.user.findUnique({
-        where: { email: process.env.SEED_ADMIN_EMAIL?.toLowerCase() ?? "pnk1590@gmail.com" },
+      prisma.user.findFirst({
+        where: process.env.SEED_ADMIN_EMAIL?.trim()
+          ? { email: process.env.SEED_ADMIN_EMAIL.trim().toLowerCase() }
+          : {
+              status: UserStatus.ACTIVE,
+              userRoles: { some: { role: { name: ROLES.ADMIN } } },
+            },
         include: { userRoles: { include: { role: true } } },
+        orderBy: { createdAt: "asc" },
       }),
     ]);
 
     expect(roleCount).toBe(4);
-    expect(permCount).toBe(25);
+    expect(permCount).toBe(28);
     expect(seedAdmin).not.toBeNull();
     expect(seedAdmin?.status).toBe(UserStatus.ACTIVE);
     expect(seedAdmin?.userRoles.some((ur) => ur.role.name === ROLES.ADMIN)).toBe(true);

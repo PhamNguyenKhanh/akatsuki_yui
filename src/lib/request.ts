@@ -1,6 +1,6 @@
 import "server-only";
 import { ZodError } from "zod";
-import { badRequestError, isAppError } from "@/lib/errors";
+import { badRequestError, isAppError, payloadTooLargeError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import type { ApiErrorDetail, ErrorCode } from "@/types/api";
 
@@ -15,9 +15,31 @@ export type ActionResult<T = void> =
       };
     };
 
+export const MAX_JSON_BODY_BYTES = 64 * 1024;
+
 export async function parseJsonBody(request: Request): Promise<unknown> {
+  const contentLengthHeader = request.headers.get("content-length");
+  if (contentLengthHeader) {
+    const contentLength = Number(contentLengthHeader);
+    if (Number.isFinite(contentLength) && contentLength > MAX_JSON_BODY_BYTES) {
+      throw payloadTooLargeError();
+    }
+  }
+
+  let rawBuffer: ArrayBuffer;
   try {
-    return await request.json();
+    rawBuffer = await request.arrayBuffer();
+  } catch {
+    throw badRequestError("Nội dung JSON không hợp lệ.");
+  }
+
+  if (rawBuffer.byteLength > MAX_JSON_BODY_BYTES) {
+    throw payloadTooLargeError();
+  }
+
+  const rawText = new TextDecoder("utf-8", { fatal: false }).decode(rawBuffer);
+  try {
+    return JSON.parse(rawText);
   } catch {
     throw badRequestError("Nội dung JSON không hợp lệ.");
   }

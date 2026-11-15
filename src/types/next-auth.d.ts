@@ -8,6 +8,7 @@ declare module "next-auth" {
       email: string;
       name: string;
       roles: RoleName[];
+      tokenVersion?: number;
     } & DefaultSession["user"];
   }
 
@@ -16,6 +17,7 @@ declare module "next-auth" {
     email?: string | null;
     name?: string | null;
     roles?: RoleName[];
+    tokenVersion?: number;
   }
 }
 
@@ -23,5 +25,6 @@ declare module "@auth/core/jwt" {
   interface JWT {
     userId?: string;
     roles?: RoleName[];
+    tokenVersion?: number;
   }
 }

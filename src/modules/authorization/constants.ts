@@ -18,6 +18,7 @@ export const PERMISSIONS = {
   PROJECT_ACTIVATE: "project.activate",
   PROJECT_ARCHIVE: "project.archive",
   PROJECT_RESTORE: "project.restore",
+  PROJECT_TEMPLATE_MANAGE: "project.template.manage",
   PROJECT_MEMBER_MANAGE: "project.member.manage",
   TASK_CREATE: "task.create",
   TASK_READ: "task.read",
@@ -31,11 +32,27 @@ export const PERMISSIONS = {
   DOCUMENT_MANAGE: "document.manage",
   DOCUMENT_READ: "document.read",
   NOTIFICATION_READ: "notification.read",
+  NOTIFICATION_DELIVERY_READ: "notification.delivery.read",
+  NOTIFICATION_DELIVERY_RETRY: "notification.delivery.retry",
   REPORT_READ: "report.read",
   ACTIVITY_READ: "activity.read",
 } as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
+
+/**
+ * Core permissions that must remain granted to the ADMIN role (BR-AUTHZ-008)
+ * so workspace administration and account/project recovery cannot be locked out.
+ */
+export const CORE_ADMIN_PERMISSION_CODES: readonly PermissionCode[] = [
+  PERMISSIONS.ACCOUNT_READ,
+  PERMISSIONS.ACCOUNT_APPROVE,
+  PERMISSIONS.ACCOUNT_MANAGE,
+  PERMISSIONS.ROLE_MANAGE,
+  PERMISSIONS.PROJECT_RESTORE,
+  PERMISSIONS.NOTIFICATION_DELIVERY_READ,
+  PERMISSIONS.NOTIFICATION_DELIVERY_RETRY,
+];
 
 export interface PermissionDefinition {
   code: PermissionCode;
@@ -85,6 +102,11 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     code: PERMISSIONS.PROJECT_RESTORE,
     name: "Restore Project",
     description: "Khôi phục Project Archived (Admin only)",
+  },
+  {
+    code: PERMISSIONS.PROJECT_TEMPLATE_MANAGE,
+    name: "Manage Project Templates",
+    description: "Tạo, chỉnh sửa và xóa Project Template",
   },
   {
     code: PERMISSIONS.PROJECT_MEMBER_MANAGE,
@@ -140,6 +162,16 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     description: "Xem thông báo cá nhân",
   },
   {
+    code: PERMISSIONS.NOTIFICATION_DELIVERY_READ,
+    name: "Read Notification Deliveries",
+    description: "Xem lịch sử gửi email thông báo toàn hệ thống (Admin only)",
+  },
+  {
+    code: PERMISSIONS.NOTIFICATION_DELIVERY_RETRY,
+    name: "Retry Notification Deliveries",
+    description: "Thử gửi lại email thông báo thất bại (Admin only)",
+  },
+  {
     code: PERMISSIONS.REPORT_READ,
     name: "Read Reports",
     description: "Xem Dashboard và Reports theo phạm vi",
@@ -168,6 +200,7 @@ export const ROLE_DEFINITIONS: Record<
       PERMISSIONS.PROJECT_ACTIVATE,
       PERMISSIONS.PROJECT_ARCHIVE,
       PERMISSIONS.PROJECT_RESTORE,
+      PERMISSIONS.PROJECT_TEMPLATE_MANAGE,
       PERMISSIONS.PROJECT_MEMBER_MANAGE,
       PERMISSIONS.TASK_CREATE,
       PERMISSIONS.TASK_READ,
@@ -181,6 +214,8 @@ export const ROLE_DEFINITIONS: Record<
       PERMISSIONS.DOCUMENT_MANAGE,
       PERMISSIONS.DOCUMENT_READ,
       PERMISSIONS.NOTIFICATION_READ,
+      PERMISSIONS.NOTIFICATION_DELIVERY_READ,
+      PERMISSIONS.NOTIFICATION_DELIVERY_RETRY,
       PERMISSIONS.REPORT_READ,
       PERMISSIONS.ACTIVITY_READ,
     ],
