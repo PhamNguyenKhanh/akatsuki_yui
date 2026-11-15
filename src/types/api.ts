@@ -1,6 +1,9 @@
 export type ApiErrorDetail = {
   field?: string;
   message: string;
+  taskId?: string;
+  taskTitle?: string;
+  taskStatus?: string;
 };
 
 export interface ApiSuccessResponse<T, M = Record<string, unknown>> {
@@ -43,5 +46,11 @@ export type ErrorCode =
   | "PROJECT_NOT_ARCHIVED"
   | "ALREADY_PROJECT_MEMBER"
   | "TASK_ASSIGNEE_REASSIGN_REQUIRED"
+  | "ASSIGNEE_NOT_PROJECT_MEMBER"
+  | "TASK_DEPENDENCY_NOT_COMPLETED"
+  | "TASK_DEPENDENCY_SELF_REFERENCE"
+  | "TASK_DEPENDENCY_EXISTS"
+  | "TASK_DEPENDENCY_CYCLE"
+  | "REVIEW_REASON_REQUIRED"
   | "TEMPLATE_IN_USE"
   | "INTERNAL_ERROR";

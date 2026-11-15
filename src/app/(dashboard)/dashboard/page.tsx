@@ -24,14 +24,18 @@ function formatDate(isoString: string): string {
   }).format(new Date(isoString));
 }
 
+import { MyAssignedTasksCard } from "@/components/tasks/my-assigned-tasks-card";
+import { listMyAssignedTasksService } from "@/modules/tasks/task.service";
+
 export default async function DashboardPage() {
   const actor = await requireActiveUserOrRedirect();
   const canReadAccounts = hasPermission(actor, PERMISSIONS.ACCOUNT_READ);
   const canReadProjects = hasPermission(actor, PERMISSIONS.PROJECT_READ);
+  const canReadTasks = hasPermission(actor, PERMISSIONS.TASK_READ);
   const canCreateProject = hasPermission(actor, PERMISSIONS.PROJECT_CREATE);
   const canManageRoles = hasPermission(actor, PERMISSIONS.ROLE_MANAGE);
 
-  const [accountStats, projectStats] = await Promise.all([
+  const [accountStats, projectStats, myAssignedTasks] = await Promise.all([
     canReadAccounts
       ? Promise.all([
           prisma.user.count(),
@@ -46,6 +50,7 @@ export default async function DashboardPage() {
           userId: actor.userId,
         })
       : Promise.resolve(null),
+    canReadTasks ? listMyAssignedTasksService(actor, 6) : Promise.resolve(null),
   ]);
 
   return (
@@ -240,6 +245,8 @@ export default async function DashboardPage() {
           </Card>
         )}
       </div>
+
+      {myAssignedTasks !== null && <MyAssignedTasksCard tasks={myAssignedTasks} />}
 
       <Card>
         <CardHeader>

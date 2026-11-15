@@ -54,12 +54,21 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
 
   const canManageMembers =
     hasPermission(actor, PERMISSIONS.PROJECT_MEMBER_MANAGE) && isAdminOrLeader;
+  const canReadTasks = hasPermission(actor, PERMISSIONS.TASK_READ);
+  const canCreateTask =
+    hasPermission(actor, PERMISSIONS.TASK_CREATE) &&
+    isAdminOrLeader &&
+    project.status !== ProjectStatus.ARCHIVED;
 
-  const [members, activeUserCandidates] = await Promise.all([
+  const { getProjectTaskStatsService } = await import("@/modules/tasks/task.service");
+  const { ProjectTaskSummaryCard } = await import("@/components/tasks/project-task-summary-card");
+
+  const [members, activeUserCandidates, taskStats] = await Promise.all([
     listProjectMembersService(actor, project.id, { includeHistory: true }),
     canManageMembers && project.status !== ProjectStatus.ARCHIVED
       ? projectRepository.findActiveUserCandidates()
       : Promise.resolve([]),
+    canReadTasks ? getProjectTaskStatsService(actor, project.id) : Promise.resolve(null),
   ]);
 
   return (
@@ -210,6 +219,14 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
           </CardContent>
         </Card>
       </div>
+
+      {taskStats && (
+        <ProjectTaskSummaryCard
+          projectId={project.id}
+          stats={taskStats}
+          canCreateTask={canCreateTask}
+        />
+      )}
 
       <ProjectMembersPanel
         projectId={project.id}

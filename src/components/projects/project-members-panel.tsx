@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ProjectMemberRole, ProjectStatus } from "@prisma/client";
 import { Crown, History, Loader2, UserMinus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { ProjectMemberRoleBadge } from "@/components/shared/status-badge";
+import type { ApiErrorDetail } from "@/types/api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -77,6 +79,8 @@ export function ProjectMembersPanel({
   const [showHistory, setShowHistory] = React.useState(false);
   const [busyKey, setBusyKey] = React.useState<string | null>(null);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = React.useState<ApiErrorDetail[]>([]);
+  const [blockedMemberUserId, setBlockedMemberUserId] = React.useState<string | null>(null);
 
   const isArchived = projectStatus === ProjectStatus.ARCHIVED;
   const activeMembers = React.useMemo(() => members.filter((m) => m.leftAt === null), [members]);
@@ -142,11 +146,17 @@ export function ProjectMembersPanel({
   async function handleRemoveMember(member: ProjectMemberDTO) {
     setBusyKey(`remove:${member.userId}`);
     setErrorMessage(null);
+    setErrorDetails([]);
+    setBlockedMemberUserId(null);
     const result = await removeProjectMemberAction(projectId, member.userId);
     setBusyKey(null);
 
     if (!result.ok) {
       setErrorMessage(result.error.message);
+      setErrorDetails(result.error.details ?? []);
+      if (result.error.code === "TASK_ASSIGNEE_REASSIGN_REQUIRED") {
+        setBlockedMemberUserId(member.userId);
+      }
       toast.error(result.error.message);
       return;
     }
@@ -198,7 +208,35 @@ export function ProjectMembersPanel({
         {errorMessage && (
           <Alert variant="destructive">
             <AlertTitle>Không thể cập nhật thành viên</AlertTitle>
-            <AlertDescription>{errorMessage}</AlertDescription>
+            <AlertDescription className="space-y-2">
+              <p>{errorMessage}</p>
+              {errorDetails.some((detail) => detail.taskId) && (
+                <ul className="list-disc space-y-1 pl-4 text-xs">
+                  {errorDetails
+                    .filter((detail) => detail.taskId)
+                    .map((detail, idx) => (
+                      <li key={`${detail.taskId}-${idx}`}>
+                        <Link
+                          href={`/projects/${projectId}/tasks/${detail.taskId}`}
+                          className="font-medium underline"
+                        >
+                          {detail.message ?? detail.taskTitle}
+                        </Link>
+                      </li>
+                    ))}
+                </ul>
+              )}
+              {blockedMemberUserId && (
+                <p className="text-xs">
+                  <Link
+                    href={`/projects/${projectId}/tasks?assigneeId=${blockedMemberUserId}`}
+                    className="font-medium underline"
+                  >
+                    Xem tất cả Task đang giao cho thành viên này →
+                  </Link>
+                </p>
+              )}
+            </AlertDescription>
           </Alert>
         )}
 
