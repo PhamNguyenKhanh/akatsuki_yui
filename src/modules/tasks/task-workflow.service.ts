@@ -4,6 +4,8 @@ import { badRequestError, conflictError, notFoundError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS } from "@/modules/authorization/constants";
 import { assertPermission } from "@/modules/authorization/policy.service";
+import { schedulePostCommitEmailDispatch } from "@/modules/notifications/notification-delivery.service";
+import { recordTaskEventNotifications } from "@/modules/notifications/notification-domain-events";
 import { emitTaskEventAfterCommit } from "@/modules/tasks/task-events";
 import { taskHistoryRepository } from "@/modules/tasks/task-history.repository";
 import {
@@ -139,12 +141,25 @@ export async function submitTaskForReviewService(
     const recipientUserIds =
       access.project.leaderId === actor.userId ? [] : [access.project.leaderId];
 
+    const notificationHandles = await recordTaskEventNotifications(tx, {
+      type: "TASK_SUBMITTED_FOR_REVIEW",
+      projectId: access.project.id,
+      taskId: detail.id,
+      taskTitle: detail.title,
+      actorId: actor.userId,
+      recipientUserIds,
+      note: data.note ?? null,
+    });
+
     return {
       detail,
       projectId: access.project.id,
       recipientUserIds,
+      notificationHandles,
     };
   });
+
+  schedulePostCommitEmailDispatch(result.notificationHandles);
 
   await emitTaskEventAfterCommit({
     type: "TASK_SUBMITTED_FOR_REVIEW",
@@ -322,14 +337,36 @@ async function processTaskReviewDecision(
       throw notFoundError("Không tìm thấy Task sau khi xử lý review.");
     }
 
+    const baseRecipients =
+      activeAssignees.length > 0
+        ? activeAssignees.map((assignee) => assignee.userId)
+        : submittedById
+          ? [submittedById]
+          : [task.createdById];
+
+    const recipientUserIds = Array.from(
+      new Set(baseRecipients.filter((userId) => Boolean(userId) && userId !== actor.userId))
+    );
+
+    const notificationHandles = await recordTaskEventNotifications(tx, {
+      type: isApprove ? "TASK_REVIEW_APPROVED" : "TASK_REVIEW_REJECTED",
+      projectId: project.id,
+      taskId: detail.id,
+      taskTitle: detail.title,
+      actorId: actor.userId,
+      recipientUserIds,
+      reason: trimmedReason,
+    });
+
     return {
       detail,
       projectId: project.id,
-      recipientUserIds: activeAssignees
-        .map((assignee) => assignee.userId)
-        .filter((userId) => userId !== actor.userId),
+      recipientUserIds,
+      notificationHandles,
     };
   });
+
+  schedulePostCommitEmailDispatch(result.notificationHandles);
 
   await emitTaskEventAfterCommit({
     type: isApprove ? "TASK_REVIEW_APPROVED" : "TASK_REVIEW_REJECTED",

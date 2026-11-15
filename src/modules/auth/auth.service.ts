@@ -11,6 +11,8 @@ import {
   type RegisterInput,
 } from "@/modules/auth/auth.schema";
 import { ROLES, type RoleName } from "@/modules/authorization/constants";
+import { schedulePostCommitEmailDispatch } from "@/modules/notifications/notification-delivery.service";
+import { recordAccountRegisteredNotifications } from "@/modules/notifications/notification-domain-events";
 import { mapUserToSafeDTO, safeUserSelect, userRepository } from "@/modules/users/user.repository";
 import type { SafeUserDTO } from "@/types/auth";
 
@@ -41,7 +43,7 @@ export async function registerAccount(rawInput: RegisterInput): Promise<SafeUser
 
   const passwordHash = await hashPassword(input.password);
 
-  const createdUser = await prisma.$transaction(async (tx) => {
+  const { user: createdUser, notificationHandles } = await prisma.$transaction(async (tx) => {
     const user = await tx.user.create({
       data: {
         email: input.email,
@@ -67,8 +69,16 @@ export async function registerAccount(rawInput: RegisterInput): Promise<SafeUser
       },
     });
 
-    return user;
+    const handles = await recordAccountRegisteredNotifications(tx, {
+      newUserId: user.id,
+      newUserEmail: user.email,
+      newUserFullName: user.fullName,
+    });
+
+    return { user, notificationHandles: handles };
   });
+
+  schedulePostCommitEmailDispatch(notificationHandles);
 
   logger.info("User registered with PENDING status", {
     userId: createdUser.id,

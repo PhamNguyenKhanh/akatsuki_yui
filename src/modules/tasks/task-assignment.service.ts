@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { isPrismaUniqueViolation } from "@/lib/prisma-errors";
 import { PERMISSIONS } from "@/modules/authorization/constants";
 import { assertPermission } from "@/modules/authorization/policy.service";
+import { schedulePostCommitEmailDispatch } from "@/modules/notifications/notification-delivery.service";
+import { recordTaskEventNotifications } from "@/modules/notifications/notification-domain-events";
 import { assertActiveUsersExist } from "@/modules/projects/project.access";
 import { emitTaskEventAfterCommit } from "@/modules/tasks/task-events";
 import { taskHistoryRepository } from "@/modules/tasks/task-history.repository";
@@ -142,6 +144,7 @@ export async function syncTaskAssigneesService(
           projectId: project.id,
           taskId: task.id,
           taskTitle: task.title,
+          notificationHandles: [],
         };
       }
 
@@ -215,14 +218,29 @@ export async function syncTaskAssigneesService(
 
       const assignees = await taskRepository.listTaskAssignees(task.id, tx);
 
+      const notificationHandles =
+        addedIds.length > 0
+          ? await recordTaskEventNotifications(tx, {
+              type: "TASK_ASSIGNED",
+              projectId: project.id,
+              taskId: task.id,
+              taskTitle: task.title,
+              actorId: actor.userId,
+              recipientUserIds: addedIds,
+            })
+          : [];
+
       return {
         assignees,
         addedIds,
         projectId: project.id,
         taskId: task.id,
         taskTitle: task.title,
+        notificationHandles,
       };
     });
+
+    schedulePostCommitEmailDispatch(result.notificationHandles);
 
     if (result.addedIds.length > 0) {
       await emitTaskEventAfterCommit({
@@ -333,13 +351,25 @@ export async function addTaskAssigneeService(
 
       const assignees = await taskRepository.listTaskAssignees(task.id, tx);
 
+      const notificationHandles = await recordTaskEventNotifications(tx, {
+        type: "TASK_ASSIGNED",
+        projectId: project.id,
+        taskId: task.id,
+        taskTitle: task.title,
+        actorId: actor.userId,
+        recipientUserIds: [targetUserId],
+      });
+
       return {
         assignees,
         projectId: project.id,
         taskId: task.id,
         taskTitle: task.title,
+        notificationHandles,
       };
     });
+
+    schedulePostCommitEmailDispatch(result.notificationHandles);
 
     await emitTaskEventAfterCommit({
       type: "TASK_ASSIGNED",

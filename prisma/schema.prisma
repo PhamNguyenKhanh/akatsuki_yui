@@ -39,6 +39,9 @@ model User {
   submittedTaskReviews TaskReview[]     @relation("TaskReviewSubmitter")
   reviewedTasks        TaskReview[]     @relation("TaskReviewReviewer")
   taskHistoryEntries   TaskHistory[]    @relation("TaskHistoryActor")
+  uploadedDocuments    Document[]       @relation("DocumentUploadedBy")
+  notifications        Notification[]   @relation("NotificationRecipient")
+  actedNotifications   Notification[]   @relation("NotificationActor")
   activityLogs         ActivityLog[]
   auditLogs            AuditLog[]
   createdAt            DateTime         @default(now())
@@ -168,6 +171,8 @@ model Project {
   members       ProjectMember[]
   tasks         Task[]
   sprints       Sprint[]
+  documents     Document[]
+  notifications Notification[]
   archivedAt    DateTime?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
@@ -216,6 +221,7 @@ model Sprint {
   completedAt DateTime?
   cancelledAt DateTime?
   tasks       Task[]
+  documents   Document[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -358,3 +364,117 @@ model TaskHistory {
   @@index([taskId, createdAt])
   @@index([actorId])
 }
+
+enum DocumentCategory {
+  SPECIFICATION
+  DESIGN
+  REPORT
+  OTHER
+}
+
+enum NotificationType {
+  ACCOUNT_REGISTERED
+  ACCOUNT_APPROVED
+  ACCOUNT_REJECTED
+  TASK_ASSIGNED
+  TASK_SUBMITTED_FOR_REVIEW
+  TASK_REVIEW_APPROVED
+  TASK_REVIEW_REJECTED
+  PROJECT_MEMBER_ADDED
+  PROJECT_MEMBER_REMOVED
+  PROJECT_LEADER_CHANGED
+  TASK_DEADLINE_REMINDER
+  SYSTEM
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model Document {
+  id           String           @id @default(uuid()) @db.Uuid
+  projectId    String           @db.Uuid
+  sprintId     String?          @db.Uuid
+  uploadedById String           @db.Uuid
+  title        String           @db.VarChar(200)
+  url          String           @db.VarChar(1000)
+  category     DocumentCategory @default(OTHER)
+  description  String?          @db.Text
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  deletedAt    DateTime?
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  sprint     Sprint? @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  uploadedBy User    @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([projectId, deletedAt, category, createdAt])
+  @@index([sprintId, deletedAt])
+  @@index([uploadedById])
+}
+
+model Notification {
+  id         String           @id @default(uuid()) @db.Uuid
+  userId     String           @db.Uuid
+  actorId    String?          @db.Uuid
+  projectId  String?          @db.Uuid
+  type       NotificationType
+  title      String           @db.VarChar(255)
+  message    String           @db.Text
+  targetUrl  String?          @db.VarChar(500)
+  entityType String           @db.VarChar(50)
+  entityId   String           @db.Uuid
+  metadata   Json?
+  dedupKey   String?          @db.VarChar(200)
+  isRead     Boolean          @default(false)
+  readAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  user       User                   @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor      User?                  @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  project    Project?               @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  deliveries NotificationDelivery[]
+
+  @@unique([userId, dedupKey])
+  @@index([userId, isRead, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([projectId])
+  @@index([type, createdAt])
+}
+
+model NotificationDelivery {
+  id                String                     @id @default(uuid()) @db.Uuid
+  notificationId    String                     @db.Uuid
+  channel           NotificationChannel        @default(EMAIL)
+  recipientEmail    String                     @db.VarChar(255)
+  status            NotificationDeliveryStatus @default(PENDING)
+  provider          String                     @default("RESEND") @db.VarChar(50)
+  providerMessageId String?                    @db.VarChar(255)
+  retryCount        Int                        @default(0)
+  lastAttemptAt     DateTime?
+  nextRetryAt       DateTime?
+  lockedAt          DateTime?
+  lockToken         String?                    @db.VarChar(100)
+  sentAt            DateTime?
+  failedAt          DateTime?
+  errorCode         String?                    @db.VarChar(100)
+  errorMessage      String?                    @db.Text
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, channel])
+  @@index([status, nextRetryAt])
+  @@index([status, lockedAt])
+  @@index([recipientEmail, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+}
+

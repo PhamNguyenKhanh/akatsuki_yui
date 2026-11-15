@@ -28,6 +28,11 @@ function testEmail(prefix: string) {
 describe("Sprint 1 PostgreSQL Integration Tests", () => {
   afterAll(async () => {
     if (createdUserIds.length > 0 || createdEmails.length > 0) {
+      await prisma.notification.deleteMany({
+        where: {
+          OR: [{ userId: { in: createdUserIds } }, { actorId: { in: createdUserIds } }],
+        },
+      });
       await prisma.auditLog.deleteMany({
         where: {
           OR: [{ entityId: { in: createdUserIds } }, { actorId: { in: createdUserIds } }],
@@ -47,7 +52,7 @@ describe("Sprint 1 PostgreSQL Integration Tests", () => {
     await prisma.$disconnect();
   });
 
-  it("verifies seeded roles, 25 permissions, and seeded active Admin account", async () => {
+  it("verifies seeded roles, 27 permissions, and seeded active Admin account", async () => {
     const [roleCount, permCount, seedAdmin] = await Promise.all([
       prisma.role.count(),
       prisma.permission.count(),
@@ -58,7 +63,7 @@ describe("Sprint 1 PostgreSQL Integration Tests", () => {
     ]);
 
     expect(roleCount).toBe(4);
-    expect(permCount).toBe(25);
+    expect(permCount).toBe(27);
     expect(seedAdmin).not.toBeNull();
     expect(seedAdmin?.status).toBe(UserStatus.ACTIVE);
     expect(seedAdmin?.userRoles.some((ur) => ur.role.name === ROLES.ADMIN)).toBe(true);

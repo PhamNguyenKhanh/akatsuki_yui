@@ -9,12 +9,7 @@ const serverEnvSchema = z.object({
   AUTH_URL: z.string().optional(),
   RESEND_API_KEY: z.string().optional().default(""),
   EMAIL_FROM: z.string().optional().default("Akatsuki Yui <onboarding@resend.dev>"),
-  SMTP_HOST: z.string().optional().default(""),
-  SMTP_PORT: z.coerce.number().int().positive().optional().default(465),
-  SMTP_USER: z.string().optional().default(""),
-  SMTP_PASS: z.string().optional().default(""),
-  SMTP_FROM_NAME: z.string().optional().default("Akatsuki Yui"),
-  SMTP_FROM: z.string().optional().default(""),
+  CRON_SECRET: z.string().optional().default(""),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

@@ -4,6 +4,8 @@ import { badRequestError, conflictError, forbiddenError, notFoundError } from "@
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS } from "@/modules/authorization/constants";
 import { assertPermission, hasPermission } from "@/modules/authorization/policy.service";
+import { schedulePostCommitEmailDispatch } from "@/modules/notifications/notification-delivery.service";
+import { recordTaskEventNotifications } from "@/modules/notifications/notification-domain-events";
 import {
   assertProjectLeaderAccess,
   assertProjectReadAccess,
@@ -217,12 +219,27 @@ export async function createTaskService(
       throw notFoundError("Không thể tải lại thông tin Task vừa tạo.");
     }
 
+    const notificationHandles =
+      data.assigneeIds.length > 0
+        ? await recordTaskEventNotifications(tx, {
+            type: "TASK_ASSIGNED",
+            projectId: project.id,
+            taskId: detail.id,
+            taskTitle: detail.title,
+            actorId: actor.userId,
+            recipientUserIds: data.assigneeIds,
+          })
+        : [];
+
     return {
       detail,
       projectId: project.id,
       assigneeIds: data.assigneeIds,
+      notificationHandles,
     };
   });
+
+  schedulePostCommitEmailDispatch(result.notificationHandles);
 
   if (result.assigneeIds.length > 0) {
     await emitTaskEventAfterCommit({

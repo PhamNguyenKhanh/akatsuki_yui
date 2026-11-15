@@ -56,6 +56,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
     hasPermission(actor, PERMISSIONS.PROJECT_MEMBER_MANAGE) && isAdminOrLeader;
   const canReadTasks = hasPermission(actor, PERMISSIONS.TASK_READ);
   const canReadSprints = hasPermission(actor, PERMISSIONS.SPRINT_READ);
+  const canReadDocuments = hasPermission(actor, PERMISSIONS.DOCUMENT_READ);
   const canManageSprint = hasPermission(actor, PERMISSIONS.SPRINT_MANAGE) && isAdminOrLeader;
   const canCreateTask =
     hasPermission(actor, PERMISSIONS.TASK_CREATE) &&
@@ -68,19 +69,31 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
   const { listBacklogTasksService } = await import("@/modules/sprints/sprint-planning.service");
   const { ProjectSprintSummaryCard } =
     await import("@/components/sprints/project-sprint-summary-card");
+  const { listProjectDocumentsService } = await import("@/modules/documents/document.service");
+  const { ProjectDocumentSummaryCard } =
+    await import("@/components/features/documents/project-document-summary-card");
 
-  const [members, activeUserCandidates, taskStats, projectSprints, backlogPreview] =
-    await Promise.all([
-      listProjectMembersService(actor, project.id, { includeHistory: true }),
-      canManageMembers && project.status !== ProjectStatus.ARCHIVED
-        ? projectRepository.findActiveUserCandidates()
-        : Promise.resolve([]),
-      canReadTasks ? getProjectTaskStatsService(actor, project.id) : Promise.resolve(null),
-      canReadSprints ? listProjectSprintsService(actor, project.id) : Promise.resolve(null),
-      canReadSprints && canReadTasks
-        ? listBacklogTasksService(actor, project.id, { pageSize: 1 })
-        : Promise.resolve(null),
-    ]);
+  const [
+    members,
+    activeUserCandidates,
+    taskStats,
+    projectSprints,
+    backlogPreview,
+    documentPreview,
+  ] = await Promise.all([
+    listProjectMembersService(actor, project.id, { includeHistory: true }),
+    canManageMembers && project.status !== ProjectStatus.ARCHIVED
+      ? projectRepository.findActiveUserCandidates()
+      : Promise.resolve([]),
+    canReadTasks ? getProjectTaskStatsService(actor, project.id) : Promise.resolve(null),
+    canReadSprints ? listProjectSprintsService(actor, project.id) : Promise.resolve(null),
+    canReadSprints && canReadTasks
+      ? listBacklogTasksService(actor, project.id, { pageSize: 1 })
+      : Promise.resolve(null),
+    canReadDocuments
+      ? listProjectDocumentsService(actor, project.id, { pageSize: 3 })
+      : Promise.resolve(null),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -246,6 +259,14 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
           backlogTotalCount={backlogPreview?.totalItems ?? 0}
           canManageSprint={canManageSprint}
           isArchived={project.status === ProjectStatus.ARCHIVED}
+        />
+      )}
+
+      {documentPreview && (
+        <ProjectDocumentSummaryCard
+          projectId={project.id}
+          documents={documentPreview.items}
+          totalCount={documentPreview.totalItems}
         />
       )}
 

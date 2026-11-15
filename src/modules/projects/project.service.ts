@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { isPrismaUniqueViolation } from "@/lib/prisma-errors";
 import { PERMISSIONS } from "@/modules/authorization/constants";
 import { assertPermission } from "@/modules/authorization/policy.service";
+import { schedulePostCommitEmailDispatch } from "@/modules/notifications/notification-delivery.service";
+import { recordProjectMemberAddedNotification } from "@/modules/notifications/notification-domain-events";
 import {
   assertActiveUsersExist,
   assertProjectLeaderAccess,
@@ -69,7 +71,7 @@ export async function createProjectService(
   const effectiveLeaderId =
     isWorkspaceAdmin(actor) && input.leaderId ? input.leaderId : actor.userId;
 
-  const created = await prisma.$transaction(async (tx) => {
+  const { created, notificationHandles } = await prisma.$transaction(async (tx) => {
     if (input.templateId) {
       const template = await tx.projectTemplate.findUnique({
         where: { id: input.templateId },
@@ -174,8 +176,25 @@ export async function createProjectService(
       },
     });
 
-    return projectRepository.findById(project.id, tx);
+    const handles = [];
+    for (const row of memberRows) {
+      if (row.userId !== actor.userId) {
+        const addedHandles = await recordProjectMemberAddedNotification(tx, {
+          actorId: actor.userId,
+          projectId: project.id,
+          projectName: project.name,
+          memberUserId: row.userId,
+          projectRole: row.projectRole,
+        });
+        handles.push(...addedHandles);
+      }
+    }
+
+    const found = await projectRepository.findById(project.id, tx);
+    return { created: found, notificationHandles: handles };
   });
+
+  schedulePostCommitEmailDispatch(notificationHandles);
 
   if (!created) {
     throw notFoundError("Không tìm thấy Project sau khi khởi tạo.");

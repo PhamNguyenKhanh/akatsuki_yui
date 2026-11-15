@@ -4,16 +4,20 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Bell,
+  FileText,
   FolderKanban,
   Layers,
   LayoutDashboard,
   LogOut,
+  MailCheck,
   Menu,
   Shield,
   UserCog,
   Users,
   X,
 } from "lucide-react";
+import { NotificationBell } from "@/components/features/notifications/notification-bell";
 import { RoleBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -42,6 +46,18 @@ const NAV_ITEMS: NavItem[] = [
     requiredPermission: PERMISSIONS.PROJECT_READ,
   },
   {
+    label: "Tài liệu (Documents)",
+    href: "/documents",
+    icon: FileText,
+    requiredPermission: PERMISSIONS.DOCUMENT_READ,
+  },
+  {
+    label: "Thông báo (Notifications)",
+    href: "/notifications",
+    icon: Bell,
+    requiredPermission: PERMISSIONS.NOTIFICATION_READ,
+  },
+  {
     label: "Project Templates",
     href: "/admin/templates",
     icon: Layers,
@@ -58,6 +74,12 @@ const NAV_ITEMS: NavItem[] = [
     href: "/admin/roles",
     icon: Shield,
     requiredPermission: PERMISSIONS.ROLE_MANAGE,
+  },
+  {
+    label: "Lịch sử gửi Email",
+    href: "/admin/notifications/deliveries",
+    icon: MailCheck,
+    requiredPermission: PERMISSIONS.NOTIFICATION_DELIVERY_READ,
   },
   {
     label: "Hồ sơ cá nhân",
@@ -121,7 +143,7 @@ export function AppShell({ user, children }: { user: AuthContext; children: Reac
         </div>
         {navContent}
         <div className="border-t border-border p-4 text-xs text-muted-foreground">
-          Sprint 4 · Sprints, Backlog &amp; Kanban
+          Sprint 5 · Documents &amp; Notifications
         </div>
       </aside>
 
@@ -167,6 +189,7 @@ export function AppShell({ user, children }: { user: AuthContext; children: Reac
           </div>
 
           <div className="flex items-center gap-3">
+            {user.permissions.includes(PERMISSIONS.NOTIFICATION_READ) && <NotificationBell />}
             <div className="hidden items-center gap-2 sm:flex">
               <Link
                 href="/profile"

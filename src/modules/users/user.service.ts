@@ -6,6 +6,8 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, ROLES, type RoleName } from "@/modules/authorization/constants";
 import { assertPermission, hasPermission } from "@/modules/authorization/policy.service";
+import { schedulePostCommitEmailDispatch } from "@/modules/notifications/notification-delivery.service";
+import { recordAccountStatusDecisionNotifications } from "@/modules/notifications/notification-domain-events";
 import { mapUserToSafeDTO, safeUserSelect, userRepository } from "@/modules/users/user.repository";
 import { uuidSchema } from "@/lib/validations/common";
 import {
@@ -171,17 +173,27 @@ export async function updateAccountStatusService(
       },
     });
 
-    return saved;
+    const handles = await recordAccountStatusDecisionNotifications(tx, {
+      actorId: actor.userId,
+      targetUserId: target.id,
+      targetUserEmail: target.email,
+      targetUserFullName: target.fullName,
+      action,
+    });
+
+    return { saved, notificationHandles: handles };
   });
+
+  schedulePostCommitEmailDispatch(updated.notificationHandles);
 
   logger.info("Account status updated", {
     actorId: actor.userId,
     targetUserId,
     action,
-    nextStatus: updated.status,
+    nextStatus: updated.saved.status,
   });
 
-  return mapUserToSafeDTO(updated);
+  return mapUserToSafeDTO(updated.saved);
 }
 
 export async function assignUserRoleService(
