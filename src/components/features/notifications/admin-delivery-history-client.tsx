@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { NotificationDeliveryStatus, NotificationType } from "@prisma/client";
 import {
   AlertTriangle,
@@ -13,7 +13,11 @@ import {
   Search,
   XCircle,
 } from "lucide-react";
+import { toast } from "sonner";
 import { NOTIFICATION_TYPE_LABELS } from "@/components/features/notifications/notification-center-client";
+import { UrlPaginationControls } from "@/components/shared/url-pagination-controls";
+import { buildUpdatedQueryUrl } from "@/lib/search-params";
+import { usePropSyncedState } from "@/lib/use-prop-synced-state";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,21 +52,74 @@ interface AdminDeliveryHistoryClientProps {
   initialItems: NotificationDeliveryDTO[];
   initialSummary: NotificationDeliverySummaryStatsDTO;
   canRetry: boolean;
+  initialPagination?: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+  };
+  initialFilters?: {
+    status: string;
+    type: string;
+    recipientEmail: string;
+  };
 }
 
 export function AdminDeliveryHistoryClient({
   initialItems,
   initialSummary,
   canRetry,
+  initialPagination,
+  initialFilters,
 }: AdminDeliveryHistoryClientProps) {
   const router = useRouter();
-  const [items, setItems] = React.useState<NotificationDeliveryDTO[]>(initialItems);
-  const [statusFilter, setStatusFilter] = React.useState<string>("ALL");
-  const [typeFilter, setTypeFilter] = React.useState<string>("ALL");
-  const [emailSearch, setEmailSearch] = React.useState<string>("");
+  const pathname = usePathname();
+  const [isNavigating, startTransition] = React.useTransition();
+  const [items, setItems] = usePropSyncedState<NotificationDeliveryDTO[]>(initialItems);
+  const [statusFilter, setStatusFilter] = usePropSyncedState<string>(
+    initialFilters?.status ?? "ALL"
+  );
+  const [typeFilter, setTypeFilter] = usePropSyncedState<string>(initialFilters?.type ?? "ALL");
+  const [emailSearch, setEmailSearch] = React.useState<string>(
+    initialFilters?.recipientEmail ?? ""
+  );
   const [retryingId, setRetryingId] = React.useState<string | null>(null);
   const [feedbackError, setFeedbackError] = React.useState<string | null>(null);
   const [feedbackSuccess, setFeedbackSuccess] = React.useState<string | null>(null);
+
+  const navigateWithQuery = React.useCallback(
+    (overrides?: { page?: number; status?: string; type?: string; recipientEmail?: string }) => {
+      const nextPage = overrides?.page ?? 1;
+      const nextStatus = overrides?.status ?? statusFilter;
+      const nextType = overrides?.type ?? typeFilter;
+      const nextRecipientEmail = (overrides?.recipientEmail ?? emailSearch).trim();
+
+      const targetUrl = buildUpdatedQueryUrl(pathname, {
+        page: nextPage > 1 ? nextPage : undefined,
+        status: nextStatus !== "ALL" ? nextStatus : undefined,
+        type: nextType !== "ALL" ? nextType : undefined,
+        recipientEmail: nextRecipientEmail || undefined,
+      });
+
+      startTransition(() => {
+        router.push(targetUrl);
+      });
+    },
+    [pathname, router, statusFilter, typeFilter, emailSearch]
+  );
+
+  React.useEffect(() => {
+    if (!initialFilters) return;
+    const trimmedCurrent = emailSearch.trim();
+    const trimmedInitial = initialFilters.recipientEmail.trim();
+    if (trimmedCurrent === trimmedInitial) return;
+
+    const timer = window.setTimeout(() => {
+      navigateWithQuery({ page: 1, recipientEmail: trimmedCurrent });
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [emailSearch, initialFilters, navigateWithQuery]);
 
   const filteredItems = React.useMemo(() => {
     return items.filter((item) => {
@@ -122,14 +179,20 @@ export function AdminDeliveryHistoryClient({
       });
       if (!res.ok) {
         setFeedbackError(res.error.message);
+        toast.error(res.error.message);
         return;
       }
       setItems((prev) => prev.map((d) => (d.id === res.data.id ? res.data : d)));
-      setFeedbackSuccess(
+      const successMsg =
         res.data.status === NotificationDeliveryStatus.SENT
           ? `Đã gửi lại email qua SMTP tới ${res.data.recipientEmail} thành công.`
-          : `Đã thực hiện thử gửi lại tới ${res.data.recipientEmail} (trạng thái hiện tại: ${res.data.status}, lần thử ${res.data.retryCount}/${res.data.maxRetries}).`
-      );
+          : `Đã thực hiện thử gửi lại tới ${res.data.recipientEmail} (trạng thái hiện tại: ${res.data.status}, lần thử ${res.data.retryCount}/${res.data.maxRetries}).`;
+      setFeedbackSuccess(successMsg);
+      if (res.data.status === NotificationDeliveryStatus.SENT) {
+        toast.success(successMsg);
+      } else {
+        toast.error(successMsg);
+      }
       router.refresh();
     } finally {
       setRetryingId(null);
@@ -246,7 +309,9 @@ export function AdminDeliveryHistoryClient({
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <MailCheck className="h-5 w-5 text-slate-700" />
-            <span>Nhật ký Gửi Email qua SMTP ({filteredItems.length})</span>
+            <span>
+              Nhật ký Gửi Email qua SMTP ({initialPagination?.totalItems ?? filteredItems.length})
+            </span>
           </CardTitle>
           <CardDescription>
             Theo dõi trạng thái gửi email thông báo qua Nodemailer SMTP và thực hiện kiểm tra / thử
@@ -259,16 +324,26 @@ export function AdminDeliveryHistoryClient({
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Tìm theo email người nhận, tiêu đề..."
+                placeholder="Tìm theo email người nhận..."
                 value={emailSearch}
                 onChange={(e) => setEmailSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    navigateWithQuery({ page: 1, recipientEmail: e.currentTarget.value });
+                  }
+                }}
                 className="pl-9"
               />
             </div>
 
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => {
+                const nextStatus = e.target.value;
+                setStatusFilter(nextStatus);
+                if (initialFilters) navigateWithQuery({ page: 1, status: nextStatus });
+              }}
               aria-label="Lọc theo trạng thái gửi"
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
@@ -283,7 +358,11 @@ export function AdminDeliveryHistoryClient({
 
             <select
               value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
+              onChange={(e) => {
+                const nextType = e.target.value;
+                setTypeFilter(nextType);
+                if (initialFilters) navigateWithQuery({ page: 1, type: nextType });
+              }}
               aria-label="Lọc theo loại sự kiện"
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
@@ -428,6 +507,18 @@ export function AdminDeliveryHistoryClient({
                 </TableBody>
               </Table>
             </div>
+          )}
+
+          {initialPagination && (
+            <UrlPaginationControls
+              page={initialPagination.page}
+              pageSize={initialPagination.pageSize}
+              totalItems={initialPagination.totalItems}
+              totalPages={initialPagination.totalPages}
+              itemLabel="bản ghi"
+              isLoading={isNavigating}
+              onPageChange={(nextPage) => navigateWithQuery({ page: nextPage })}
+            />
           )}
         </CardContent>
       </Card>

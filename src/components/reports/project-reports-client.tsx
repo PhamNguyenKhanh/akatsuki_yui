@@ -517,6 +517,39 @@ export function ProjectReportsClient({
             </Card>
           </div>
 
+          {(analytics.summary.activeSprints?.length ?? 0) > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Layers className="h-4 w-4 text-primary" />
+                  Sprint đang thực hiện ({analytics.summary.activeSprints.length})
+                </CardTitle>
+                <CardDescription>
+                  Hỗ trợ nhiều Sprint ACTIVE chạy song song trong cùng Project (DEC-006).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3 md:grid-cols-2">
+                {analytics.summary.activeSprints.map((sp) => (
+                  <Link
+                    key={sp.id}
+                    href={`/projects/${projectId}/sprints/${sp.id}`}
+                    className="flex flex-col gap-1.5 rounded-lg border border-border p-3 transition hover:bg-slate-50"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-slate-900">{sp.name}</span>
+                      <Badge variant="default" className="text-xs">
+                        {sp.progressPercent}% ({sp.doneTasks}/{sp.totalTasks})
+                      </Badge>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {formatHcmDateVi(sp.startDate)} – {formatHcmDateVi(sp.endDate)}
+                    </span>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
           <div className="grid gap-4 lg:grid-cols-2">
             <Card className="lg:col-span-2">
               <CardHeader>

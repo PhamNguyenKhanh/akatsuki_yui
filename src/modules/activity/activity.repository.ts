@@ -115,6 +115,9 @@ export function buildActivityTargetUrl(params: {
   if (entityType === "Project" && (projectId ?? entityId)) {
     return `/projects/${projectId ?? entityId}`;
   }
+  if (entityType === "ProjectMember" && projectId) {
+    return `/projects/${projectId}`;
+  }
   if (entityType === "User") {
     return "/admin/users";
   }
@@ -241,11 +244,32 @@ export const activityRepository = {
     }
 
     const fullIds = scope.fullProjectIds ?? [];
+    const restrictedIds = scope.memberRestrictedProjectIds;
     if (fullIds.length === 0) {
-      // Pure MEMBER visibility: only expose self in actor filter so no peer enumeration occurs
+      // Pure MEMBER visibility: expose self plus actors on Tasks assigned to self inside
+      // restricted Projects without enumerating unrelated peers (DEC-052).
       return tx.user.findMany({
-        where: { id: actor.userId },
+        where: {
+          OR: [
+            { id: actor.userId },
+            ...(restrictedIds.length > 0
+              ? [
+                  {
+                    taskHistoryEntries: {
+                      some: {
+                        task: {
+                          projectId: { in: restrictedIds },
+                          assignees: { some: { userId: actor.userId } },
+                        },
+                      },
+                    },
+                  },
+                ]
+              : []),
+          ],
+        },
         select: { id: true, fullName: true, email: true },
+        orderBy: { fullName: "asc" },
       });
     }
 
@@ -256,6 +280,20 @@ export const activityRepository = {
           { projectMemberships: { some: { projectId: { in: fullIds } } } },
           { ledProjects: { some: { id: { in: fullIds } } } },
           { instructedProjects: { some: { id: { in: fullIds } } } },
+          ...(restrictedIds.length > 0
+            ? [
+                {
+                  taskHistoryEntries: {
+                    some: {
+                      task: {
+                        projectId: { in: restrictedIds },
+                        assignees: { some: { userId: actor.userId } },
+                      },
+                    },
+                  },
+                },
+              ]
+            : []),
         ],
       },
       select: { id: true, fullName: true, email: true },

@@ -61,6 +61,14 @@ export interface ProjectAnalyticsSourceData {
     totalTasks: number;
     doneTasks: number;
   } | null;
+  activeSprints?: Array<{
+    id: string;
+    name: string;
+    startDate: Date;
+    endDate: Date;
+    totalTasks: number;
+    doneTasks: number;
+  }>;
 }
 
 interface RawCountBucketRow {
@@ -285,8 +293,9 @@ export const projectAnalyticsRepository = {
         WHERE t."projectId" = ${projectId}::uuid
         GROUP BY t."sprintId", s."name", s."status", t."status"
       `,
-      tx.sprint.findFirst({
+      tx.sprint.findMany({
         where: { projectId, status: SprintStatus.ACTIVE },
+        orderBy: [{ startDate: "asc" }, { createdAt: "asc" }],
         select: {
           id: true,
           name: true,
@@ -316,16 +325,15 @@ export const projectAnalyticsRepository = {
       estimateHours: row._sum.estimateHours ?? 0,
     }));
 
-    const activeSprint = activeSprintRaw
-      ? {
-          id: activeSprintRaw.id,
-          name: activeSprintRaw.name,
-          startDate: activeSprintRaw.startDate,
-          endDate: activeSprintRaw.endDate,
-          totalTasks: activeSprintRaw.tasks.length,
-          doneTasks: activeSprintRaw.tasks.filter((t) => t.status === TaskStatus.DONE).length,
-        }
-      : null;
+    const activeSprints = activeSprintRaw.map((sp) => ({
+      id: sp.id,
+      name: sp.name,
+      startDate: sp.startDate,
+      endDate: sp.endDate,
+      totalTasks: sp.tasks.length,
+      doneTasks: sp.tasks.filter((t) => t.status === TaskStatus.DONE).length,
+    }));
+    const activeSprint = activeSprints[0] ?? null;
 
     return {
       project,
@@ -341,6 +349,7 @@ export const projectAnalyticsRepository = {
       overdueSlipBuckets,
       sprintWorkloadRows,
       activeSprint,
+      activeSprints,
     };
   },
 };

@@ -36,12 +36,20 @@ vi.mock("@/modules/authorization/require-auth", () => ({
 
 import { NextRequest } from "next/server";
 import { GET as getActivityRoute } from "@/app/api/v1/activity/route";
-import { decodeActivityCursor, encodeActivityCursor } from "@/modules/activity/activity.schema";
+import {
+  ACTIVITY_ENTITY_TYPES,
+  decodeActivityCursor,
+  encodeActivityCursor,
+} from "@/modules/activity/activity.schema";
 import {
   activityRepository,
+  buildActivityTargetUrl,
   compareActivityEntriesDesc,
 } from "@/modules/activity/activity.repository";
-import { listUnifiedActivityService } from "@/modules/activity/activity.service";
+import {
+  getActivityFilterOptionsService,
+  listUnifiedActivityService,
+} from "@/modules/activity/activity.service";
 
 const ADMIN_ID = "11111111-1111-4111-8111-111111111111";
 const LEADER_ID = "22222222-2222-4222-8222-222222222222";
@@ -277,5 +285,63 @@ describe("Sprint 6 Package 2 — Unified Activity History & Cursor Pagination", 
     );
     expect(resProject403.status).toBe(403);
     void forbiddenError;
+  });
+
+  it("supports ProjectMember target links, search + action filters, and MEMBER-safe actor options", async () => {
+    expect(ACTIVITY_ENTITY_TYPES).toContain("ProjectMember");
+    expect(
+      buildActivityTargetUrl({
+        entityType: "ProjectMember",
+        entityId: OTHER_ID,
+        projectId: PROJ_A_ID,
+      })
+    ).toBe(`/projects/${PROJ_A_ID}`);
+
+    const admin = makeActor(ADMIN_ID, ROLES.ADMIN, [PERMISSIONS.ACTIVITY_READ]);
+    prismaMock.activityLog.findMany.mockResolvedValue([]);
+    prismaMock.taskHistory.findMany.mockResolvedValue([]);
+    await listUnifiedActivityService(admin, {
+      entityType: "Task",
+      action: TaskHistoryAction.STATUS_CHANGED,
+      search: "Sprint 1",
+    });
+
+    // entityType: "Task" + TaskHistory action queries TaskHistory arm only
+    expect(prismaMock.activityLog.findMany).not.toHaveBeenCalled();
+    const taskSearchWhere = prismaMock.taskHistory.findMany.mock.calls[0]?.[0]?.where;
+    expect(JSON.stringify(taskSearchWhere)).toContain("Sprint 1");
+    expect(JSON.stringify(taskSearchWhere)).toContain(`"action":"${TaskHistoryAction.STATUS_CHANGED}"`);
+
+    prismaMock.activityLog.findMany.mockClear();
+    prismaMock.taskHistory.findMany.mockClear();
+    await listUnifiedActivityService(admin, {
+      entityType: "ProjectMember",
+      search: "Added member",
+    });
+    expect(prismaMock.taskHistory.findMany).not.toHaveBeenCalled();
+    const memberSearchWhere = prismaMock.activityLog.findMany.mock.calls[0]?.[0]?.where;
+    expect(JSON.stringify(memberSearchWhere)).toContain("ProjectMember");
+    expect(JSON.stringify(memberSearchWhere)).toContain("Added member");
+
+    // MEMBER actor options include TaskHistory actors on tasks assigned to MEMBER without exposing unassigned peer rows
+    const member = makeActor(MEMBER_ID, ROLES.MEMBER, [PERMISSIONS.ACTIVITY_READ]);
+    prismaMock.project.findMany
+      .mockResolvedValueOnce([{ id: PROJ_A_ID, name: "Proj Alpha" }]) // dropdown project list (findAccessibleProjectsForFilter runs first)
+      .mockResolvedValueOnce([
+        { id: PROJ_A_ID, leaderId: LEADER_ID, instructorId: null, members: [] },
+      ]); // scope lookup (resolveVisibilityScope runs second)
+    prismaMock.user.findMany.mockResolvedValueOnce([
+      { id: ADMIN_ID, fullName: "Admin User", email: "admin@local" },
+      { id: LEADER_ID, fullName: "Leader User", email: "leader@local" },
+    ]);
+
+    const options = await getActivityFilterOptionsService(member);
+    expect(options.projects).toEqual([{ id: PROJ_A_ID, name: "Proj Alpha" }]);
+    expect(options.actors.map((a) => a.id)).toEqual([ADMIN_ID, LEADER_ID]);
+
+    const actorFilterWhere = prismaMock.user.findMany.mock.calls[0]?.[0]?.where;
+    expect(JSON.stringify(actorFilterWhere)).toContain("taskHistoryEntries");
+    expect(JSON.stringify(actorFilterWhere)).toContain(`"assignees":{"some":{"userId":"${MEMBER_ID}"}}`);
+    expect(JSON.stringify(actorFilterWhere)).not.toContain("projectMemberships");
   });
 });

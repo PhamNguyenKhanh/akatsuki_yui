@@ -29,5 +29,11 @@ export default async function ProjectReportsPage({ params }: ProjectReportsPageP
     throw error;
   }
 
-  return <ProjectReportsClient {...bundle} switcherMode="project-route" />;
+  return (
+    <ProjectReportsClient
+      key={bundle.initialAnalytics.projectId}
+      {...bundle}
+      switcherMode="project-route"
+    />
+  );
 }

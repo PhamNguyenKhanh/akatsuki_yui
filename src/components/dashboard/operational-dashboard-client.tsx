@@ -77,9 +77,12 @@ export function OperationalDashboardClient({
     taskSummary,
     timelineProgress,
     sprintSummary,
+    activeSprints,
     myAssignedTasks,
     recentActivity,
   } = dashboard;
+
+  const displayedSprints = activeSprints.length > 0 ? activeSprints : sprintSummary ? [sprintSummary] : [];
 
   function handleProjectChange(projectId: string) {
     router.push(`/dashboard?projectId=${encodeURIComponent(projectId)}`);
@@ -190,7 +193,7 @@ export function OperationalDashboardClient({
               </Button>
               {permissions.canReadTasks && (
                 <Button asChild variant="outline" size="sm">
-                  <Link href={`/projects/${selectedProject.id}/board`}>Kanban &amp; Backlog</Link>
+                  <Link href={`/projects/${selectedProject.id}/kanban`}>Kanban Board</Link>
                 </Button>
               )}
               {permissions.canReadReports && (
@@ -346,57 +349,66 @@ export function OperationalDashboardClient({
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Gauge className="h-4 w-4 text-primary" />
                   Tiến độ Sprint
+                  {activeSprints.length > 1 && (
+                    <Badge variant="secondary" className="text-xs">
+                      {activeSprints.length} đang chạy
+                    </Badge>
+                  )}
                 </CardTitle>
                 <CardDescription>
-                  Sprint trọng tâm của Project {selectedProject.name}
+                  {activeSprints.length > 1
+                    ? `Các Sprint đang chạy song song của Project ${selectedProject.name}`
+                    : `Sprint trọng tâm của Project ${selectedProject.name}`}
                 </CardDescription>
               </div>
               <Button asChild variant="outline" size="sm">
                 <Link href={`/projects/${selectedProject.id}/sprints`}>Danh sách Sprint</Link>
               </Button>
             </CardHeader>
-            <CardContent>
-              {sprintSummary ? (
-                <div className="space-y-3 rounded-lg border border-border p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Link
-                      href={`/projects/${selectedProject.id}/sprints/${sprintSummary.id}`}
-                      className="font-semibold text-slate-900 hover:text-primary hover:underline"
-                    >
-                      {sprintSummary.name}
-                    </Link>
-                    <SprintStatusBadge status={sprintSummary.status} />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {formatHcmDateVi(sprintSummary.startDate)} →{" "}
-                    {formatHcmDateVi(sprintSummary.endDate)} · {sprintSummary.taskStats.doneCount}/
-                    {sprintSummary.taskStats.totalTasks} Task DONE
-                  </p>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs font-medium">
-                      <span>Hoàn thành Sprint</span>
-                      <span>{sprintSummary.taskStats.progressPercent}%</span>
+            <CardContent className="space-y-3">
+              {displayedSprints.length > 0 ? (
+                displayedSprints.map((sprintItem) => (
+                  <div key={sprintItem.id} className="space-y-3 rounded-lg border border-border p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <Link
+                        href={`/projects/${selectedProject.id}/sprints/${sprintItem.id}`}
+                        className="font-semibold text-slate-900 hover:text-primary hover:underline"
+                      >
+                        {sprintItem.name}
+                      </Link>
+                      <SprintStatusBadge status={sprintItem.status} />
                     </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                      <div
-                        className="h-full rounded-full bg-primary transition-all"
-                        style={{
-                          width: `${Math.min(100, Math.max(0, sprintSummary.taskStats.progressPercent))}%`,
-                        }}
-                      />
+                    <p className="text-xs text-muted-foreground">
+                      {formatHcmDateVi(sprintItem.startDate)} →{" "}
+                      {formatHcmDateVi(sprintItem.endDate)} · {sprintItem.taskStats.doneCount}/
+                      {sprintItem.taskStats.totalTasks} Task DONE
+                    </p>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span>Hoàn thành Sprint</span>
+                        <span>{sprintItem.taskStats.progressPercent}%</span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                        <div
+                          className="h-full rounded-full bg-primary transition-all"
+                          style={{
+                            width: `${Math.min(100, Math.max(0, sprintItem.taskStats.progressPercent))}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                      <span>In Progress: {sprintItem.taskStats.inProgressCount}</span>
+                      <span>Review: {sprintItem.taskStats.reviewCount}</span>
+                      {sprintItem.taskStats.overdueCount > 0 && (
+                        <span className="flex items-center gap-1 font-medium text-red-700">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          Quá hạn: {sprintItem.taskStats.overdueCount}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                    <span>In Progress: {sprintSummary.taskStats.inProgressCount}</span>
-                    <span>Review: {sprintSummary.taskStats.reviewCount}</span>
-                    {sprintSummary.taskStats.overdueCount > 0 && (
-                      <span className="flex items-center gap-1 font-medium text-red-700">
-                        <AlertTriangle className="h-3.5 w-3.5" />
-                        Quá hạn: {sprintSummary.taskStats.overdueCount}
-                      </span>
-                    )}
-                  </div>
-                </div>
+                ))
               ) : (
                 <p className="py-6 text-center text-sm text-muted-foreground">
                   Project hiện chưa có Sprint nào được khởi tạo.
@@ -523,7 +535,7 @@ export function OperationalDashboardClient({
               <CardContent className="flex flex-wrap gap-2">
                 {permissions.canReadAccounts && (
                   <Button asChild variant="outline" size="sm">
-                    <Link href="/admin/accounts">
+                    <Link href="/admin/users">
                       <Users className="h-4 w-4" />
                       Tài khoản
                     </Link>
@@ -531,7 +543,7 @@ export function OperationalDashboardClient({
                 )}
                 {permissions.canManageRoles && (
                   <Button asChild variant="outline" size="sm">
-                    <Link href="/admin/rbac">
+                    <Link href="/admin/roles">
                       <KeyRound className="h-4 w-4" />
                       Ma trận RBAC
                     </Link>

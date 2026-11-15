@@ -19,6 +19,7 @@ import {
   groupAndSortEstimateEvents,
   normalizeEstimateHours,
   resolveTaskEstimateAt,
+  touchesEstimateField,
   type EstimateHistoryEventLike,
   type EstimateSnapshotMode,
 } from "@/modules/sprints/estimate-reconstruction";
@@ -223,7 +224,7 @@ export function computeSprintBurndownAnalytics(
   let hasIncompleteHistory = false;
   let usedActivationSnapshot = false;
 
-  const scopePerDay = days.map((ymd, dayIndex) => {
+  const scopePerDay = days.map((ymd) => {
     const endOfDay = hcmEndOfDay(ymd);
     const estimateEvalTime =
       closureAt && endOfDay.getTime() > closureAt.getTime() ? closureAt : endOfDay;
@@ -242,11 +243,22 @@ export function computeSprintBurndownAnalytics(
 
       memberTaskCount += 1;
       const taskEstEvents = estimateEventsByTask.get(task.id) ?? [];
+      const hasEstimateEditAfterActivationUpToEval =
+        sprint.activatedAt !== null &&
+        taskEstEvents.some((ev) => {
+          if (ev.action !== TaskHistoryAction.INFO_UPDATED) return false;
+          const evMs = ev.createdAt.getTime();
+          if (evMs <= sprint.activatedAt!.getTime() || evMs > estimateEvalTime.getTime()) {
+            return false;
+          }
+          return touchesEstimateField(ev);
+        });
       const canUseActivationFallback =
-        dayIndex === 0 &&
+        sprint.activatedAt !== null &&
         activatedYmd !== null &&
-        ymd === activatedYmd &&
-        activationSnapshotByTask.has(task.id);
+        ymd >= activatedYmd &&
+        activationSnapshotByTask.has(task.id) &&
+        !hasEstimateEditAfterActivationUpToEval;
 
       let resolved = resolveTaskEstimateAt(
         task,
@@ -256,7 +268,7 @@ export function computeSprintBurndownAnalytics(
         closureAt
       );
 
-      // Use activation snapshot only if diff history had a gap or activation occurred on Day 0 with no diff overwrite.
+      // Use activation snapshot when diff history has a gap and no post-activation estimate diff intervened.
       if (!resolved.isExact && canUseActivationFallback) {
         resolved = resolveTaskEstimateAt(
           task,

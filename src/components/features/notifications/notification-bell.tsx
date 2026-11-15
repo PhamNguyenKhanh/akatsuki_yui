@@ -2,11 +2,13 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { Bell, CheckCheck, ExternalLink } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Bell, CheckCheck, ExternalLink, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { usePropSyncedState } from "@/lib/use-prop-synced-state";
 import {
   markAllNotificationsReadAction,
   markNotificationReadStateAction,
@@ -22,16 +24,17 @@ function formatShortTime(isoString: string): string {
   }).format(new Date(isoString));
 }
 
-export function NotificationBell() {
+export function NotificationBell({ initialUnreadCount = 0 }: { initialUnreadCount?: number }) {
   const router = useRouter();
-  const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
-  const [unreadCount, setUnreadCount] = React.useState<number>(0);
+  const [unreadCount, setUnreadCount] = usePropSyncedState<number>(initialUnreadCount);
   const [recentItems, setRecentItems] = React.useState<NotificationDTO[]>([]);
   const [loading, setLoading] = React.useState(false);
+  const [fetchingPreview, setFetchingPreview] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   const fetchPreview = React.useCallback(async () => {
+    setFetchingPreview(true);
     try {
       const res = await fetch("/api/v1/notifications?pageSize=6", {
         cache: "no-store",
@@ -46,35 +49,11 @@ export function NotificationBell() {
         setUnreadCount(payload.data.unreadCount);
       }
     } catch {
-      // Ignore transient network errors in header polling
+      // On-demand preview errors stay non-blocking
+    } finally {
+      setFetchingPreview(false);
     }
-  }, []);
-
-  React.useEffect(() => {
-    let ignore = false;
-    async function load() {
-      try {
-        const res = await fetch("/api/v1/notifications?pageSize=6", {
-          cache: "no-store",
-        });
-        if (!res.ok || ignore) return;
-        const payload = (await res.json()) as {
-          success?: boolean;
-          data?: { items: NotificationDTO[]; unreadCount: number };
-        };
-        if (!ignore && payload?.data) {
-          setRecentItems(payload.data.items);
-          setUnreadCount(payload.data.unreadCount);
-        }
-      } catch {
-        // Ignore transient network errors in header polling
-      }
-    }
-    void load();
-    return () => {
-      ignore = true;
-    };
-  }, [pathname]);
+  }, [setUnreadCount]);
 
   React.useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -111,7 +90,10 @@ export function NotificationBell() {
       if (res.ok) {
         setUnreadCount(0);
         setRecentItems((prev) => prev.map((n) => ({ ...n, isRead: true })));
+        toast.success("Đã đánh dấu tất cả thông báo là đã đọc.");
         router.refresh();
+      } else {
+        toast.error(res.error.message);
       }
     } finally {
       setLoading(false);
@@ -154,19 +136,33 @@ export function NotificationBell() {
               )}
             </div>
 
-            {unreadCount > 0 && (
+            <div className="flex items-center gap-1">
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
-                onClick={() => void handleMarkAllRead()}
-                disabled={loading}
-                className="h-7 px-2 text-xs"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => void fetchPreview()}
+                disabled={fetchingPreview}
+                aria-label="Làm mới thông báo"
+                title="Làm mới thông báo"
               >
-                <CheckCheck className="h-3.5 w-3.5" />
-                <span>Đọc tất cả</span>
+                <RefreshCw className={cn("h-3.5 w-3.5", fetchingPreview && "animate-spin")} />
               </Button>
-            )}
+              {unreadCount > 0 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void handleMarkAllRead()}
+                  disabled={loading}
+                  className="h-7 px-2 text-xs"
+                >
+                  <CheckCheck className="h-3.5 w-3.5" />
+                  <span>Đọc tất cả</span>
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="max-h-96 divide-y divide-border overflow-y-auto">

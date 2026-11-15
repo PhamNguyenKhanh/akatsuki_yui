@@ -78,6 +78,16 @@ export interface SprintWorkloadBucketDTO {
   completedEstimateHours: number;
 }
 
+export interface ProjectActiveSprintSummaryDTO {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  totalTasks: number;
+  doneTasks: number;
+  progressPercent: number;
+}
+
 export interface ProjectAnalyticsDTO {
   projectId: string;
   projectName: string;
@@ -102,15 +112,8 @@ export interface ProjectAnalyticsDTO {
     overdueTasks: number;
     taskWorkProgressPercent: number;
     projectTimelineProgress: ProjectTimelineProgressDTO;
-    activeSprint: {
-      id: string;
-      name: string;
-      startDate: string;
-      endDate: string;
-      totalTasks: number;
-      doneTasks: number;
-      progressPercent: number;
-    } | null;
+    activeSprint: ProjectActiveSprintSummaryDTO | null;
+    activeSprints: ProjectActiveSprintSummaryDTO[];
     overallReviewApprovalRatePercent: number;
     overallTotalReviews: number;
   };
@@ -426,6 +429,18 @@ export function computeProjectAnalytics(
     referenceNow
   );
 
+  const activeSprintsRaw =
+    source.activeSprints ?? (source.activeSprint ? [source.activeSprint] : []);
+  const activeSprints: ProjectActiveSprintSummaryDTO[] = activeSprintsRaw.map((sp) => ({
+    id: sp.id,
+    name: sp.name,
+    startDate: formatPgDateYmd(sp.startDate),
+    endDate: formatPgDateYmd(sp.endDate),
+    totalTasks: sp.totalTasks,
+    doneTasks: sp.doneTasks,
+    progressPercent: formatPercent(sp.doneTasks, sp.totalTasks),
+  }));
+
   return {
     projectId: source.project.id,
     projectName: source.project.name,
@@ -450,20 +465,8 @@ export function computeProjectAnalytics(
       overdueTasks: overdueActiveTasks.length,
       taskWorkProgressPercent: formatPercent(statusCounts.DONE, totalTasks),
       projectTimelineProgress,
-      activeSprint: source.activeSprint
-        ? {
-            id: source.activeSprint.id,
-            name: source.activeSprint.name,
-            startDate: formatPgDateYmd(source.activeSprint.startDate),
-            endDate: formatPgDateYmd(source.activeSprint.endDate),
-            totalTasks: source.activeSprint.totalTasks,
-            doneTasks: source.activeSprint.doneTasks,
-            progressPercent: formatPercent(
-              source.activeSprint.doneTasks,
-              source.activeSprint.totalTasks
-            ),
-          }
-        : null,
+      activeSprint: activeSprints[0] ?? null,
+      activeSprints,
       overallReviewApprovalRatePercent: formatPercent(overallApproved, overallTotal),
       overallTotalReviews: overallTotal,
     },

@@ -10,6 +10,7 @@ export type ActivityRecordSource = "WORKSPACE" | "TASK";
 
 export const ACTIVITY_ENTITY_TYPES = [
   "Project",
+  "ProjectMember",
   "Sprint",
   "Document",
   "Task",
