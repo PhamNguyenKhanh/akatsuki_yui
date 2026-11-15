@@ -7,6 +7,12 @@ import { isPrismaUniqueViolation } from "@/lib/prisma-errors";
 import { uuidSchema } from "@/lib/validations/common";
 import { PERMISSIONS } from "@/modules/authorization/constants";
 import { assertPermission } from "@/modules/authorization/policy.service";
+import { schedulePostCommitEmailDispatch } from "@/modules/notifications/notification-delivery.service";
+import {
+  recordProjectLeaderChangedNotifications,
+  recordProjectMemberAddedNotification,
+  recordProjectMemberRemovedNotification,
+} from "@/modules/notifications/notification-domain-events";
 import {
   addProjectMemberSchema,
   changeProjectLeaderSchema,
@@ -143,6 +149,7 @@ export async function addProjectMemberService(
       await tx.activityLog.create({
         data: {
           userId: actor.userId,
+          projectId: project.id,
           action: "PROJECT_MEMBER_ADDED",
           entityType: "Project",
           entityId: project.id,
@@ -155,8 +162,19 @@ export async function addProjectMemberService(
         },
       });
 
-      return member;
+      const notificationHandles = await recordProjectMemberAddedNotification(tx, {
+        actorId: actor.userId,
+        projectId: project.id,
+        projectName: project.name,
+        memberUserId: input.userId,
+        memberEmail: member.user.email,
+        projectRole: input.projectRole,
+      });
+
+      return { member, notificationHandles };
     });
+
+    schedulePostCommitEmailDispatch(created.notificationHandles);
 
     logger.info("Project member added", {
       actorId: actor.userId,
@@ -165,7 +183,7 @@ export async function addProjectMemberService(
       projectRole: input.projectRole,
     });
 
-    return mapProjectMemberToDTO(created);
+    return mapProjectMemberToDTO(created.member);
   } catch (error) {
     if (isPrismaUniqueViolation(error, ["ProjectMember_active_project_user_idx"])) {
       throw conflictError("ALREADY_PROJECT_MEMBER", "Thành viên này hiện đã tham gia Project.");
@@ -183,7 +201,7 @@ export async function changeProjectLeaderService(
   const validProjectId = parseProjectId(projectId);
   const { leaderId: nextLeaderId } = changeProjectLeaderSchema.parse(rawInput);
 
-  await prisma.$transaction(async (tx) => {
+  const notificationHandles = await prisma.$transaction(async (tx) => {
     const project = await assertProjectLeaderAccess(actor, validProjectId, tx);
     if (project.status === ProjectStatus.ARCHIVED) {
       throw conflictError(
@@ -195,7 +213,7 @@ export async function changeProjectLeaderService(
     await assertActiveUsersExist(tx, [nextLeaderId], "leaderId");
 
     if (project.leaderId === nextLeaderId) {
-      return;
+      return [];
     }
 
     const previousLeaderId = project.leaderId;
@@ -252,6 +270,7 @@ export async function changeProjectLeaderService(
     await tx.activityLog.create({
       data: {
         userId: actor.userId,
+        projectId: project.id,
         action: "PROJECT_LEADER_CHANGED",
         entityType: "Project",
         entityId: project.id,
@@ -259,7 +278,17 @@ export async function changeProjectLeaderService(
         metadata: { previousLeaderId, nextLeaderId },
       },
     });
+
+    return recordProjectLeaderChangedNotifications(tx, {
+      actorId: actor.userId,
+      projectId: project.id,
+      projectName: project.name,
+      previousLeaderId,
+      nextLeaderId,
+    });
   });
+
+  schedulePostCommitEmailDispatch(notificationHandles);
 
   logger.info("Project leader changed", {
     actorId: actor.userId,
@@ -362,6 +391,7 @@ export async function removeProjectMemberService(
     await tx.activityLog.create({
       data: {
         userId: actor.userId,
+        projectId: project.id,
         action: "PROJECT_MEMBER_REMOVED",
         entityType: "Project",
         entityId: project.id,
@@ -374,8 +404,19 @@ export async function removeProjectMemberService(
       },
     });
 
-    return updated;
+    const notificationHandles = await recordProjectMemberRemovedNotification(tx, {
+      actorId: actor.userId,
+      projectId: project.id,
+      projectName: project.name,
+      memberUserId: validUserId,
+      memberEmail: updated.user.email,
+      previousRole: updated.projectRole,
+    });
+
+    return { updated, notificationHandles };
   });
+
+  schedulePostCommitEmailDispatch(removed.notificationHandles);
 
   logger.info("Project member removed (soft-leave)", {
     actorId: actor.userId,
@@ -383,5 +424,5 @@ export async function removeProjectMemberService(
     targetUserId: validUserId,
   });
 
-  return mapProjectMemberToDTO(removed);
+  return mapProjectMemberToDTO(removed.updated);
 }

@@ -1,4 +1,10 @@
-import { ProjectMemberRole, ProjectStatus } from "@prisma/client";
+import {
+  ProjectMemberRole,
+  ProjectStatus,
+  SprintStatus,
+  TaskPriority,
+  TaskStatus,
+} from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { ROLES, type RoleName } from "@/modules/authorization/constants";
 import type { UserStatus } from "@/types/auth";
@@ -62,4 +68,88 @@ const PROJECT_MEMBER_ROLE_BADGE_MAP: Record<
 export function ProjectMemberRoleBadge({ role }: { role: ProjectMemberRole }) {
   const config = PROJECT_MEMBER_ROLE_BADGE_MAP[role];
   return <Badge variant={config.variant}>{config.label}</Badge>;
+}
+
+const TASK_STATUS_BADGE_MAP: Record<TaskStatus, { label: string; className: string }> = {
+  [TaskStatus.TODO]: {
+    label: "To Do",
+    className: "border-slate-300 bg-slate-100 text-slate-700",
+  },
+  [TaskStatus.IN_PROGRESS]: {
+    label: "In Progress",
+    className: "border-sky-300 bg-sky-50 text-sky-800",
+  },
+  [TaskStatus.REVIEW]: {
+    label: "Review",
+    className: "border-amber-300 bg-amber-50 text-amber-800",
+  },
+  [TaskStatus.DONE]: {
+    label: "Done",
+    className: "border-emerald-300 bg-emerald-50 text-emerald-800",
+  },
+};
+
+export function TaskStatusBadge({ status }: { status: TaskStatus }) {
+  const config = TASK_STATUS_BADGE_MAP[status];
+  return (
+    <Badge variant="outline" className={config.className}>
+      {config.label}
+    </Badge>
+  );
+}
+
+const TASK_PRIORITY_BADGE_MAP: Record<TaskPriority, { label: string; className: string }> = {
+  [TaskPriority.LOW]: {
+    label: "Low",
+    className: "border-slate-200 bg-slate-50 text-slate-600",
+  },
+  [TaskPriority.MEDIUM]: {
+    label: "Medium",
+    className: "border-blue-200 bg-blue-50 text-blue-700",
+  },
+  [TaskPriority.HIGH]: {
+    label: "High",
+    className: "border-orange-300 bg-orange-50 text-orange-800",
+  },
+  [TaskPriority.CRITICAL]: {
+    label: "Critical",
+    className: "border-red-300 bg-red-50 text-red-800",
+  },
+};
+
+export function TaskPriorityBadge({ priority }: { priority: TaskPriority }) {
+  const config = TASK_PRIORITY_BADGE_MAP[priority];
+  return (
+    <Badge variant="outline" className={config.className}>
+      {config.label}
+    </Badge>
+  );
+}
+
+const SPRINT_STATUS_BADGE_MAP: Record<SprintStatus, { label: string; className: string }> = {
+  [SprintStatus.PLANNED]: {
+    label: "Lên kế hoạch (Planned)",
+    className: "border-slate-300 bg-slate-100 text-slate-700",
+  },
+  [SprintStatus.ACTIVE]: {
+    label: "Đang chạy (Active)",
+    className: "border-emerald-300 bg-emerald-50 text-emerald-800",
+  },
+  [SprintStatus.COMPLETED]: {
+    label: "Đã hoàn thành",
+    className: "border-sky-300 bg-sky-50 text-sky-800",
+  },
+  [SprintStatus.CANCELLED]: {
+    label: "Đã hủy",
+    className: "border-zinc-300 bg-zinc-100 text-zinc-600",
+  },
+};
+
+export function SprintStatusBadge({ status }: { status: SprintStatus }) {
+  const config = SPRINT_STATUS_BADGE_MAP[status];
+  return (
+    <Badge variant="outline" className={config.className}>
+      {config.label}
+    </Badge>
+  );
 }

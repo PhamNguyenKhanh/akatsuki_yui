@@ -1,18 +1,52 @@
 import "server-only";
-import type { Prisma } from "@prisma/client";
+import { TaskStatus, type Prisma } from "@prisma/client";
+import { conflictError } from "@/lib/errors";
+import { formatTaskCode } from "@/modules/tasks/task.schema";
 
 /**
- * Sprint 2 guard hook for DEC-009 / BR-MEM-005:
- * Before removing a member from a Project, Sprint 3 will query TaskAssignee
- * for unfinished tasks inside the Project and throw
- * `conflictError("TASK_ASSIGNEE_REASSIGN_REQUIRED", ...)` if any exist.
+ * DEC-009 / BR-MEM-005 guard invoked inside removeProjectMemberService transaction:
+ * Blocks soft-removing a ProjectMember while they still hold active (removedAt IS NULL)
+ * assignments on unfinished (status !== DONE) Tasks inside the Project.
  */
 export const taskAssignmentGuard = {
   async assertNoActiveProjectTasks(
-    _tx: Prisma.TransactionClient,
-    _projectId: string,
-    _userId: string
+    tx: Prisma.TransactionClient,
+    projectId: string,
+    userId: string
   ): Promise<void> {
-    return;
+    const blockingAssignments = await tx.taskAssignee.findMany({
+      where: {
+        userId,
+        removedAt: null,
+        task: {
+          projectId,
+          status: { not: TaskStatus.DONE },
+        },
+      },
+      orderBy: [{ task: { deadline: "asc" } }, { assignedAt: "asc" }],
+      select: {
+        task: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (blockingAssignments.length > 0) {
+      throw conflictError(
+        "TASK_ASSIGNEE_REASSIGN_REQUIRED",
+        `Không thể loại bỏ thành viên vì vẫn còn ${blockingAssignments.length} Task chưa hoàn thành đang được phân công trong Project này. Vui lòng bàn giao Task trước.`,
+        blockingAssignments.map((item) => ({
+          field: "userId",
+          taskId: item.task.id,
+          taskTitle: item.task.title,
+          taskStatus: item.task.status,
+          message: `${formatTaskCode(item.task.id)} ${item.task.title} (${item.task.status})`,
+        }))
+      );
+    }
   },
 };

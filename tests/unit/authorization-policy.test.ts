@@ -34,16 +34,16 @@ describe("RBAC Catalog & Policy Service", () => {
     findUniqueMock.mockReset();
   });
 
-  it("defines all 4 roles and 25 unique permission codes", () => {
+  it("defines all 4 roles and 27 unique permission codes", () => {
     const roleNames = Object.keys(ROLE_DEFINITIONS);
     expect(roleNames).toHaveLength(4);
-    expect(PERMISSION_CATALOG).toHaveLength(25);
+    expect(PERMISSION_CATALOG).toHaveLength(27);
 
     expect(roleNames).toEqual(
       expect.arrayContaining([ROLES.ADMIN, ROLES.INSTRUCTOR, ROLES.LEADER, ROLES.MEMBER])
     );
 
-    expect(ROLE_DEFINITIONS[ROLES.ADMIN].permissions).toHaveLength(25);
+    expect(ROLE_DEFINITIONS[ROLES.ADMIN].permissions).toHaveLength(27);
   });
 
   it("evaluates hasPermission, hasAnyPermission, and assertPermission accurately", () => {

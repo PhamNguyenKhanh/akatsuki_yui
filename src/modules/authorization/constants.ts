@@ -31,6 +31,8 @@ export const PERMISSIONS = {
   DOCUMENT_MANAGE: "document.manage",
   DOCUMENT_READ: "document.read",
   NOTIFICATION_READ: "notification.read",
+  NOTIFICATION_DELIVERY_READ: "notification.delivery.read",
+  NOTIFICATION_DELIVERY_RETRY: "notification.delivery.retry",
   REPORT_READ: "report.read",
   ACTIVITY_READ: "activity.read",
 } as const;
@@ -47,6 +49,8 @@ export const CORE_ADMIN_PERMISSION_CODES: readonly PermissionCode[] = [
   PERMISSIONS.ACCOUNT_MANAGE,
   PERMISSIONS.ROLE_MANAGE,
   PERMISSIONS.PROJECT_RESTORE,
+  PERMISSIONS.NOTIFICATION_DELIVERY_READ,
+  PERMISSIONS.NOTIFICATION_DELIVERY_RETRY,
 ];
 
 export interface PermissionDefinition {
@@ -152,6 +156,16 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     description: "Xem thông báo cá nhân",
   },
   {
+    code: PERMISSIONS.NOTIFICATION_DELIVERY_READ,
+    name: "Read Notification Deliveries",
+    description: "Xem lịch sử gửi email thông báo toàn hệ thống (Admin only)",
+  },
+  {
+    code: PERMISSIONS.NOTIFICATION_DELIVERY_RETRY,
+    name: "Retry Notification Deliveries",
+    description: "Thử gửi lại email thông báo thất bại (Admin only)",
+  },
+  {
     code: PERMISSIONS.REPORT_READ,
     name: "Read Reports",
     description: "Xem Dashboard và Reports theo phạm vi",
@@ -193,6 +207,8 @@ export const ROLE_DEFINITIONS: Record<
       PERMISSIONS.DOCUMENT_MANAGE,
       PERMISSIONS.DOCUMENT_READ,
       PERMISSIONS.NOTIFICATION_READ,
+      PERMISSIONS.NOTIFICATION_DELIVERY_READ,
+      PERMISSIONS.NOTIFICATION_DELIVERY_RETRY,
       PERMISSIONS.REPORT_READ,
       PERMISSIONS.ACTIVITY_READ,
     ],
