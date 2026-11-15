@@ -121,7 +121,13 @@ export function classifySmtpError(error: unknown): ClassifiedSmtpFailure {
   }
 
   // Timeout without a clear pre-DATA phase when command is unknown or post-RCPT
-  if (isTimeout && command !== "CONN" && command !== "EHLO" && command !== "HELO" && command !== "AUTH") {
+  if (
+    isTimeout &&
+    command !== "CONN" &&
+    command !== "EHLO" &&
+    command !== "HELO" &&
+    command !== "AUTH"
+  ) {
     return {
       outcome: "UNKNOWN",
       errorCode: "SMTP_SEND_TIMEOUT",
@@ -175,10 +181,7 @@ export function classifySmtpError(error: unknown): ClassifiedSmtpFailure {
 /**
  * Legacy helper alias retained cleanly for unit verification of permanent vs transient rules.
  */
-export function classifyEmailProviderError(
-  errorCode: string,
-  httpStatus?: number
-): boolean {
+export function classifyEmailProviderError(errorCode: string, httpStatus?: number): boolean {
   const classified = classifySmtpError({
     code: errorCode,
     responseCode: httpStatus,
@@ -189,7 +192,9 @@ export function classifyEmailProviderError(
 
 export function createSmtpTransporter(config: SmtpRuntimeConfig): Transporter {
   const allowInsecureLoopbackStarttls =
-    process.env.NODE_ENV !== "production" && config.host ? isLoopbackHost(config.host) : false;
+    Boolean(config.host && isLoopbackHost(config.host)) &&
+    (process.env.NODE_ENV !== "production" ||
+      process.env.E2E_ALLOW_PLAINTEXT_LOOPBACK_SMTP === "1");
 
   const authConfig =
     config.authMode === "oauth2"
