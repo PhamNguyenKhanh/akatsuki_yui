@@ -201,7 +201,10 @@ export const sprintTaskDispositionItemSchema = z
 export const completeSprintSchema = z.object({
   expectedUpdatedAt: z.string().datetime().optional(),
   note: nullableTextSchema(2000, "Ghi chú tổng kết Sprint"),
-  taskDispositions: z.array(sprintTaskDispositionItemSchema).default([]),
+  taskDispositions: z
+    .array(sprintTaskDispositionItemSchema)
+    .max(250, "Số lượng Task xử lý khi hoàn thành Sprint không được vượt quá 250.")
+    .default([]),
 });
 
 export const kanbanScopeSchema = z.enum(["PROJECT", "SPRINT", "BACKLOG"]);

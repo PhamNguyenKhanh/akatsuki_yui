@@ -75,7 +75,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Project Templates",
     href: "/admin/templates",
     icon: Layers,
-    requiredAnyPermissions: [PERMISSIONS.PROJECT_CREATE, PERMISSIONS.ROLE_MANAGE],
+    requiredAnyPermissions: [PERMISSIONS.PROJECT_TEMPLATE_MANAGE],
   },
   {
     label: "Quản lý tài khoản",
@@ -102,7 +102,15 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-export function AppShell({ user, children }: { user: AuthContext; children: React.ReactNode }) {
+export function AppShell({
+  user,
+  initialUnreadCount = 0,
+  children,
+}: {
+  user: AuthContext;
+  initialUnreadCount?: number;
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
@@ -157,7 +165,7 @@ export function AppShell({ user, children }: { user: AuthContext; children: Reac
         </div>
         {navContent}
         <div className="border-t border-border p-4 text-xs text-muted-foreground">
-          Sprint 6 · Dashboard &amp; Reports
+          Akatsuki Yui · MVP v1.0
         </div>
       </aside>
 
@@ -203,7 +211,9 @@ export function AppShell({ user, children }: { user: AuthContext; children: Reac
           </div>
 
           <div className="flex items-center gap-3">
-            {user.permissions.includes(PERMISSIONS.NOTIFICATION_READ) && <NotificationBell />}
+            {user.permissions.includes(PERMISSIONS.NOTIFICATION_READ) && (
+              <NotificationBell initialUnreadCount={initialUnreadCount} />
+            )}
             <div className="hidden items-center gap-2 sm:flex">
               <Link
                 href="/profile"

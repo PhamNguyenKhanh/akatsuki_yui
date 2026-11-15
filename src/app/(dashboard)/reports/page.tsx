@@ -79,5 +79,11 @@ export default async function GlobalReportsPage({ searchParams }: GlobalReportsP
     throw error;
   }
 
-  return <ProjectReportsClient {...bundle} switcherMode="global-reports" />;
+  return (
+    <ProjectReportsClient
+      key={bundle.initialAnalytics.projectId}
+      {...bundle}
+      switcherMode="global-reports"
+    />
+  );
 }

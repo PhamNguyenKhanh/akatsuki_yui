@@ -802,6 +802,7 @@ describe("Sprint 3 Task Services Unit Tests", () => {
       );
 
       prismaMock.task.findUnique
+        .mockResolvedValueOnce({ projectId: PROJECT_ID })
         .mockResolvedValueOnce(makeTaskRecord({ id: TASK_A_ID }))
         .mockResolvedValueOnce({ id: TASK_A_ID, status: TaskStatus.TODO })
         .mockResolvedValueOnce({
@@ -823,6 +824,7 @@ describe("Sprint 3 Task Services Unit Tests", () => {
 
       // Cycle detection case: B -> A exists, try A -> B
       prismaMock.task.findUnique
+        .mockResolvedValueOnce({ projectId: PROJECT_ID })
         .mockResolvedValueOnce(makeTaskRecord({ id: TASK_A_ID }))
         .mockResolvedValueOnce({ id: TASK_A_ID, status: TaskStatus.TODO })
         .mockResolvedValueOnce({
@@ -844,6 +846,7 @@ describe("Sprint 3 Task Services Unit Tests", () => {
 
       // Duplicate case
       prismaMock.task.findUnique
+        .mockResolvedValueOnce({ projectId: PROJECT_ID })
         .mockResolvedValueOnce(makeTaskRecord({ id: TASK_A_ID }))
         .mockResolvedValueOnce({ id: TASK_A_ID, status: TaskStatus.TODO })
         .mockResolvedValueOnce({
@@ -861,6 +864,7 @@ describe("Sprint 3 Task Services Unit Tests", () => {
 
       // DONE task cannot receive non-DONE predecessor
       prismaMock.task.findUnique
+        .mockResolvedValueOnce({ projectId: PROJECT_ID })
         .mockResolvedValueOnce(makeTaskRecord({ id: TASK_A_ID, status: TaskStatus.DONE }))
         .mockResolvedValueOnce({ id: TASK_A_ID, status: TaskStatus.DONE })
         .mockResolvedValueOnce({

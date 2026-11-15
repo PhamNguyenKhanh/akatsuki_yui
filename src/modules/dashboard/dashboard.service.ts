@@ -2,7 +2,7 @@ import "server-only";
 import { ProjectStatus, SprintStatus, UserStatus } from "@prisma/client";
 import { badRequestError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
-import { formatPgDateYmd } from "@/lib/timezone";
+import { formatPgDateYmd, toBusinessCalendarYmd } from "@/lib/timezone";
 import {
   listUnifiedActivityService,
   type ActivityFeedPageDTO,
@@ -44,6 +44,15 @@ export interface DashboardProjectOptionDTO {
   updatedAt: string;
 }
 
+export interface DashboardSprintSummaryDTO {
+  id: string;
+  name: string;
+  status: SprintStatus;
+  startDate: string;
+  endDate: string;
+  taskStats: SprintTaskStatsDTO;
+}
+
 export interface OperationalDashboardDTO {
   permissions: {
     canReadAccounts: boolean;
@@ -80,14 +89,8 @@ export interface OperationalDashboardDTO {
   } | null;
   taskSummary: (ProjectTaskSummaryStatsDTO & { workProgressPercent: number }) | null;
   timelineProgress: ProjectTimelineProgressDTO | null;
-  sprintSummary: {
-    id: string;
-    name: string;
-    status: SprintStatus;
-    startDate: string;
-    endDate: string;
-    taskStats: SprintTaskStatsDTO;
-  } | null;
+  sprintSummary: DashboardSprintSummaryDTO | null;
+  activeSprints: DashboardSprintSummaryDTO[];
   myAssignedTasks: MyAssignedTaskDTO[];
   recentActivity: {
     items: ActivityFeedPageDTO["items"];
@@ -218,8 +221,8 @@ export async function getOperationalDashboardService(
     id: project.id,
     name: project.name,
     status: project.status,
-    startDate: project.startDate ? formatPgDateYmd(project.startDate) : null,
-    endDate: project.endDate ? formatPgDateYmd(project.endDate) : null,
+    startDate: project.startDate ? toBusinessCalendarYmd(project.startDate) : null,
+    endDate: project.endDate ? toBusinessCalendarYmd(project.endDate) : null,
     leaderName: project.leader.fullName,
     activeMemberCount: project._count.members,
     updatedAt: project.updatedAt.toISOString(),
@@ -259,6 +262,7 @@ export async function getOperationalDashboardService(
       taskSummary: null,
       timelineProgress: null,
       sprintSummary: null,
+      activeSprints: [],
       myAssignedTasks,
       recentActivity: null,
     };
@@ -273,7 +277,7 @@ export async function getOperationalDashboardService(
             status: { in: [SprintStatus.ACTIVE, SprintStatus.PLANNED, SprintStatus.COMPLETED] },
           },
           orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
-          take: 10,
+          take: 50,
           select: {
             id: true,
             name: true,
@@ -307,11 +311,33 @@ export async function getOperationalDashboardService(
     };
   }
 
-  const chosenSprint =
-    projectSprints.find((s) => s.status === SprintStatus.ACTIVE) ??
-    projectSprints.find((s) => s.status === SprintStatus.PLANNED) ??
-    projectSprints[0] ??
-    null;
+  const activeSprintDtos: DashboardSprintSummaryDTO[] = projectSprints
+    .filter((s) => s.status === SprintStatus.ACTIVE)
+    .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
+    .map((sprint) => ({
+      id: sprint.id,
+      name: sprint.name,
+      status: sprint.status,
+      startDate: formatPgDateYmd(sprint.startDate),
+      endDate: formatPgDateYmd(sprint.endDate),
+      taskStats: computeSprintTaskStats(sprint.tasks, referenceNow),
+    }));
+
+  const fallbackSprint =
+    projectSprints.find((s) => s.status === SprintStatus.PLANNED) ?? projectSprints[0] ?? null;
+
+  const chosenSprintDto: DashboardSprintSummaryDTO | null =
+    activeSprintDtos[0] ??
+    (fallbackSprint
+      ? {
+          id: fallbackSprint.id,
+          name: fallbackSprint.name,
+          status: fallbackSprint.status,
+          startDate: formatPgDateYmd(fallbackSprint.startDate),
+          endDate: formatPgDateYmd(fallbackSprint.endDate),
+          taskStats: computeSprintTaskStats(fallbackSprint.tasks, referenceNow),
+        }
+      : null);
 
   const timelineProgress = computeProjectTimelineProgress(
     selected.startDate,
@@ -337,8 +363,8 @@ export async function getOperationalDashboardService(
       name: selected.name,
       status: selected.status,
       isReadOnly: selected.status === ProjectStatus.ARCHIVED,
-      startDate: selected.startDate ? formatPgDateYmd(selected.startDate) : null,
-      endDate: selected.endDate ? formatPgDateYmd(selected.endDate) : null,
+      startDate: selected.startDate ? toBusinessCalendarYmd(selected.startDate) : null,
+      endDate: selected.endDate ? toBusinessCalendarYmd(selected.endDate) : null,
       leaderName: selected.leader.fullName,
       activeMemberCount: selected._count.members,
     },
@@ -347,16 +373,8 @@ export async function getOperationalDashboardService(
     notificationSummary,
     taskSummary,
     timelineProgress,
-    sprintSummary: chosenSprint
-      ? {
-          id: chosenSprint.id,
-          name: chosenSprint.name,
-          status: chosenSprint.status,
-          startDate: formatPgDateYmd(chosenSprint.startDate),
-          endDate: formatPgDateYmd(chosenSprint.endDate),
-          taskStats: computeSprintTaskStats(chosenSprint.tasks, referenceNow),
-        }
-      : null,
+    sprintSummary: chosenSprintDto,
+    activeSprints: activeSprintDtos,
     myAssignedTasks,
     recentActivity: recentActivityFeed
       ? {

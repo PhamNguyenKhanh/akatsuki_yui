@@ -53,11 +53,12 @@ export async function markAllNotificationsReadAction(): Promise<
 }
 
 export async function manualRetryNotificationDeliveryAction(
-  deliveryId: string
+  deliveryId: string,
+  options?: { confirmUnknownResend?: boolean }
 ): Promise<ActionResult<NotificationDeliveryDTO>> {
   try {
     const actor = await requireActiveUser();
-    const updated = await manualRetryNotificationDeliveryService(actor, deliveryId);
+    const updated = await manualRetryNotificationDeliveryService(actor, deliveryId, options);
     revalidateNotificationPaths();
     return {
       ok: true,

@@ -66,6 +66,7 @@ export const userRepository = {
         fullName: true,
         passwordHash: true,
         status: true,
+        tokenVersion: true,
         userRoles: {
           select: {
             role: {

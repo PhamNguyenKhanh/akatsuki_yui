@@ -496,4 +496,170 @@ describe("Sprint 6 Package 3 — Sprint Commitment, Estimate Reconstruction & Bu
       );
     });
   });
+
+  describe("4. Reconstruction & Burndown Edge Cases (Sprint 7 Regression)", () => {
+    it("handles CREATED after targetInstant, CREATED.newValue mismatch, and partial INFO_UPDATED diffs", () => {
+      // Exact CREATED diff matching current estimateHours => pre-creation resolves cleanly to null (isExact: true)
+      const matchedTask = { id: TASK_A, estimateHours: 5 };
+      const matchedCreatedEvents = [
+        {
+          id: "c1-match",
+          taskId: TASK_A,
+          action: TaskHistoryAction.CREATED,
+          oldValue: null,
+          newValue: { estimateHours: 5 },
+          createdAt: new Date("2026-11-05T10:00:00+07:00"),
+        },
+      ];
+
+      const beforeCreation = resolveTaskEstimateAt(
+        matchedTask,
+        matchedCreatedEvents,
+        new Date("2026-11-04T10:00:00+07:00")
+      );
+      expect(beforeCreation.estimateHours).toBeNull();
+      expect(beforeCreation.isExact).toBe(true);
+
+      // Mismatch between CREATED.newValue (5) and current (10) -> missing intermediate edit => INCOMPLETE_HISTORY
+      const mismatchedTask = { id: TASK_C, estimateHours: 10 };
+      const mismatchedEvents = [
+        {
+          id: "c1-mismatch",
+          taskId: TASK_C,
+          action: TaskHistoryAction.CREATED,
+          oldValue: null,
+          newValue: { estimateHours: 5 },
+          createdAt: new Date("2026-11-05T10:00:00+07:00"),
+        },
+      ];
+
+      const incompleteAtTarget = resolveTaskEstimateAt(
+        mismatchedTask,
+        mismatchedEvents,
+        new Date("2026-11-06T10:00:00+07:00")
+      );
+      expect(incompleteAtTarget.isExact).toBe(false);
+      expect(incompleteAtTarget.source).toBe("INCOMPLETE_HISTORY");
+      expect(incompleteAtTarget.estimateHours).toBe(10);
+
+      // Partial INFO_UPDATED not touching estimateHours must be ignored; CREATED.newValue (8) == current (8)
+      const taskWithTitleOnlyEdit = { id: TASK_B, estimateHours: 8 };
+      const eventsPartialDiff = [
+        {
+          id: "u-title",
+          taskId: TASK_B,
+          action: TaskHistoryAction.INFO_UPDATED,
+          oldValue: { title: "Old" },
+          newValue: { title: "New" },
+          createdAt: new Date("2026-11-06T10:00:00+07:00"),
+        },
+        {
+          id: "c2",
+          taskId: TASK_B,
+          action: TaskHistoryAction.CREATED,
+          oldValue: null,
+          newValue: { estimateHours: 8 },
+          createdAt: new Date("2026-11-02T10:00:00+07:00"),
+        },
+      ];
+      const exactTitleEdit = resolveTaskEstimateAt(
+        taskWithTitleOnlyEdit,
+        eventsPartialDiff,
+        new Date("2026-11-04T10:00:00+07:00")
+      );
+      expect(exactTitleEdit.estimateHours).toBe(8);
+      expect(exactTitleEdit.isExact).toBe(true);
+    });
+
+    it("keeps Day 0 & Day 1+ activation fallback consistent, supports CANCELLED burndown, and excludes pre-activation DONE work cleanly", () => {
+      // Case A: Incomplete history before Day 0 falls back consistently on Day 0 AND Day 1 to activationSnapshot
+      const cancelledSprintAnalytics = computeSprintBurndownAnalytics(
+        {
+          sprint: {
+            id: SPRINT_1_ID,
+            projectId: PROJECT_ID,
+            name: "Cancelled Sprint",
+            startDate: new Date("2026-11-01T00:00:00.000Z"),
+            endDate: new Date("2026-11-05T00:00:00.000Z"),
+            status: SprintStatus.CANCELLED,
+            activatedAt: new Date("2026-11-01T08:00:00+07:00"),
+            completedAt: null,
+            cancelledAt: new Date("2026-11-03T15:00:00+07:00"),
+            createdAt: new Date("2026-10-30T00:00:00Z"),
+          },
+          tasks: [
+            {
+              id: TASK_A,
+              title: "Already Done Before Activation",
+              status: TaskStatus.DONE,
+              sprintId: SPRINT_1_ID,
+              deadline: new Date("2026-11-05T00:00:00.000Z"),
+              estimateHours: 5,
+              completedAt: new Date("2026-10-31T18:00:00+07:00"),
+              createdAt: new Date("2026-10-30T00:00:00Z"),
+            },
+            {
+              id: TASK_B,
+              title: "Active Task With Unlogged Pre-Edit -> Activation Snapshot 6h",
+              status: TaskStatus.IN_PROGRESS,
+              sprintId: null,
+              deadline: new Date("2026-11-05T00:00:00.000Z"),
+              estimateHours: 9, // Edited directly without history before activation or missing CREATED diff
+              completedAt: null,
+              createdAt: new Date("2026-10-30T00:00:00Z"),
+            },
+          ],
+          activationBaselineTasks: [
+            { taskId: TASK_A, estimateHours: 5 },
+            { taskId: TASK_B, estimateHours: 6 },
+          ],
+          historyEvents: [
+            {
+              id: "hb-add",
+              taskId: TASK_B,
+              action: TaskHistoryAction.SPRINT_ASSIGNED,
+              oldValue: { sprintId: null },
+              newValue: { sprintId: SPRINT_1_ID },
+              createdAt: new Date("2026-11-01T07:00:00+07:00"),
+            },
+            {
+              id: "hb-cancel-rem",
+              taskId: TASK_B,
+              action: TaskHistoryAction.SPRINT_REMOVED,
+              oldValue: { sprintId: SPRINT_1_ID },
+              newValue: { sprintId: null },
+              metadata: { source: "SPRINT_CANCELLED", cancelledSprintId: SPRINT_1_ID },
+              createdAt: new Date("2026-11-03T15:00:00+07:00"),
+            },
+          ],
+          estimateHistoryEvents: [
+            {
+              id: "eh-mismatch",
+              taskId: TASK_B,
+              action: TaskHistoryAction.INFO_UPDATED,
+              oldValue: { estimateHours: 4 },
+              newValue: { estimateHours: 6 },
+              createdAt: new Date("2026-10-31T12:00:00+07:00"), // Last diff was 6, current DB is 9 -> gap!
+            },
+          ],
+        },
+        new Date("2026-11-06T10:00:00+07:00")
+      );
+
+      expect(cancelledSprintAnalytics.sprintStatus).toBe(SprintStatus.CANCELLED);
+      expect(cancelledSprintAnalytics.burndown.baselineHours).toBe(11); // 5 + 6
+      // Day 1 (2026-11-01): TASK_A already DONE (0 remaining), TASK_B fallback 6h -> remaining 6h
+      const day1Point = cancelledSprintAnalytics.burndown.points.find(
+        (p) => p.date === "2026-11-01"
+      )!;
+      const day2Point = cancelledSprintAnalytics.burndown.points.find(
+        (p) => p.date === "2026-11-02"
+      )!;
+      expect(day1Point.actualRemainingHours).toBe(6);
+      expect(day2Point.actualRemainingHours).toBe(6); // Consistent activation fallback on Day 1+!
+      expect(cancelledSprintAnalytics.burndown.closureScopeHours).toBe(11);
+      expect(cancelledSprintAnalytics.burndown.completedEstimateHours).toBe(5);
+      expect(cancelledSprintAnalytics.burndown.remainingEstimateHours).toBe(6);
+    });
+  });
 });

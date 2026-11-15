@@ -367,11 +367,90 @@ describe("Sprint 6 Package 4 — Project Aggregate Analytics & Date Windows", ()
         overdueSlipBuckets: [],
         sprintWorkloadRows: [],
         activeSprint: null,
+        activeSprints: [],
       });
 
       const res = await getProjectAnalyticsService(memberActor, PROJECT_ID, { preset: "7d" });
       expect(res.projectId).toBe(PROJECT_ID);
       expect(res.privacyScope).toBe("PROJECT_AGGREGATE_ONLY");
+    });
+
+    it("preserves multiple concurrent ACTIVE sprints in summary.activeSprints (DEC-006)", () => {
+      const refNow = new Date("2026-11-15T12:00:00+07:00");
+      const window = resolveAnalyticsDateWindow(
+        { preset: "7d" },
+        {
+          startDate: new Date("2026-11-01T00:00:00Z"),
+          createdAt: new Date("2026-10-25T00:00:00Z"),
+          earliestTaskCreatedAt: new Date("2026-11-01T08:00:00+07:00"),
+        },
+        refNow
+      );
+
+      const multiSprintDto = computeProjectAnalytics(
+        {
+          project: {
+            id: PROJECT_ID,
+            name: "Multi Sprint Project",
+            status: ProjectStatus.ACTIVE,
+            startDate: new Date("2026-11-01T00:00:00Z"),
+            endDate: new Date("2026-11-30T00:00:00Z"),
+            createdAt: new Date("2026-10-25T00:00:00Z"),
+          },
+          earliestTaskCreatedAt: new Date("2026-11-01T08:00:00+07:00"),
+          statusCounts: {
+            [TaskStatus.TODO]: 2,
+            [TaskStatus.IN_PROGRESS]: 1,
+            [TaskStatus.REVIEW]: 0,
+            [TaskStatus.DONE]: 3,
+          },
+          priorityMatrix: [],
+          overdueActiveTasks: [],
+          createdBuckets: [],
+          completedBuckets: [],
+          completedBeforeWindowCount: 0,
+          reviewBuckets: [],
+          totalProjectReviews: [],
+          overdueSlipBuckets: [],
+          sprintWorkloadRows: [],
+          activeSprint: {
+            id: "s1",
+            name: "Sprint 1 - API",
+            startDate: new Date("2026-11-01T00:00:00Z"),
+            endDate: new Date("2026-11-18T00:00:00Z"),
+            totalTasks: 4,
+            doneTasks: 2,
+          },
+          activeSprints: [
+            {
+              id: "s1",
+              name: "Sprint 1 - API",
+              startDate: new Date("2026-11-01T00:00:00Z"),
+              endDate: new Date("2026-11-18T00:00:00Z"),
+              totalTasks: 4,
+              doneTasks: 2,
+            },
+            {
+              id: "s2",
+              name: "Sprint 2 - UI",
+              startDate: new Date("2026-11-05T00:00:00Z"),
+              endDate: new Date("2026-11-22T00:00:00Z"),
+              totalTasks: 2,
+              doneTasks: 1,
+            },
+          ],
+        },
+        window,
+        refNow
+      );
+
+      expect(multiSprintDto.summary.activeSprint?.id).toBe("s1");
+      expect(multiSprintDto.summary.activeSprints).toHaveLength(2);
+      expect(multiSprintDto.summary.activeSprints.map((s) => s.name)).toEqual([
+        "Sprint 1 - API",
+        "Sprint 2 - UI",
+      ]);
+      expect(multiSprintDto.summary.activeSprints[0].progressPercent).toBe(50);
     });
   });
 });

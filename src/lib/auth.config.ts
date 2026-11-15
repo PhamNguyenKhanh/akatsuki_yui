@@ -9,9 +9,19 @@ export const PUBLIC_ROUTES = [
   "/pending-approval",
   "/access-denied",
 ] as const;
-export const PROTECTED_ROUTE_PREFIXES = ["/dashboard", "/profile", "/admin"] as const;
+export const PROTECTED_ROUTE_PREFIXES = [
+  "/dashboard",
+  "/profile",
+  "/admin",
+  "/projects",
+  "/documents",
+  "/notifications",
+  "/reports",
+  "/activity",
+] as const;
 
 export const authConfig: NextAuthConfig = {
+  trustHost: true,
   session: {
     strategy: "jwt",
     maxAge: 60 * 60 * 24 * 7, // 7 days
@@ -27,6 +37,7 @@ export const authConfig: NextAuthConfig = {
         token.email = user.email ?? token.email;
         token.name = user.name ?? token.name;
         token.roles = user.roles ?? [];
+        token.tokenVersion = typeof user.tokenVersion === "number" ? user.tokenVersion : 0;
       }
       return token;
     },
@@ -36,6 +47,8 @@ export const authConfig: NextAuthConfig = {
         session.user.email = token.email ?? "";
         session.user.name = token.name ?? "";
         session.user.roles = (token.roles as RoleName[] | undefined) ?? [];
+        session.user.tokenVersion =
+          typeof token.tokenVersion === "number" ? token.tokenVersion : -1;
       }
       return session;
     },

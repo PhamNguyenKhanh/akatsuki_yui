@@ -10,7 +10,10 @@ import type { AuthContext } from "@/types/auth";
  * Never trust Role/Permission/Status cached in client or stale JWT alone.
  * Always verify active User status and load Roles + Permissions from PostgreSQL.
  */
-export async function loadTrustedAuthContext(userId: string): Promise<AuthContext> {
+export async function loadTrustedAuthContext(
+  userId: string,
+  options?: { expectedTokenVersion?: number }
+): Promise<AuthContext> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -18,6 +21,7 @@ export async function loadTrustedAuthContext(userId: string): Promise<AuthContex
       email: true,
       fullName: true,
       status: true,
+      tokenVersion: true,
       userRoles: {
         select: {
           role: {
@@ -41,6 +45,13 @@ export async function loadTrustedAuthContext(userId: string): Promise<AuthContex
 
   if (!user) {
     throw unauthorizedError("Phiên đăng nhập không hợp lệ hoặc tài khoản không tồn tại.");
+  }
+
+  if (options?.expectedTokenVersion !== undefined) {
+    const dbVersion = typeof user.tokenVersion === "number" ? user.tokenVersion : 0;
+    if (dbVersion !== options.expectedTokenVersion) {
+      throw unauthorizedError("Phiên đăng nhập đã hết hiệu lực. Vui lòng đăng nhập lại.");
+    }
   }
 
   if (user.status !== UserStatus.ACTIVE) {

@@ -240,7 +240,7 @@ export async function syncTaskAssigneesService(
       };
     });
 
-    schedulePostCommitEmailDispatch(result.notificationHandles);
+    await schedulePostCommitEmailDispatch(result.notificationHandles);
 
     if (result.addedIds.length > 0) {
       await emitTaskEventAfterCommit({
@@ -369,7 +369,7 @@ export async function addTaskAssigneeService(
       };
     });
 
-    schedulePostCommitEmailDispatch(result.notificationHandles);
+    await schedulePostCommitEmailDispatch(result.notificationHandles);
 
     await emitTaskEventAfterCommit({
       type: "TASK_ASSIGNED",

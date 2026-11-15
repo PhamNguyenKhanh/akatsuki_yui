@@ -2,8 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { DocumentCategory, ProjectStatus } from "@prisma/client";
+import { toast } from "sonner";
+import { UrlPaginationControls } from "@/components/shared/url-pagination-controls";
+import { buildUpdatedQueryUrl } from "@/lib/search-params";
+import { usePropSyncedState } from "@/lib/use-prop-synced-state";
 import {
   Archive,
   ExternalLink,
@@ -103,6 +107,18 @@ interface DocumentLibraryClientProps {
     sprints: DocumentSprintSummaryDTO[];
   };
   accessibleProjects?: AccessibleProjectOptionDTO[];
+  initialPagination?: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+  };
+  initialFilters?: {
+    search?: string;
+    category?: string;
+    projectId?: string;
+    sprintId?: string;
+  };
 }
 
 export function DocumentLibraryClient({
@@ -110,17 +126,67 @@ export function DocumentLibraryClient({
   initialDocuments,
   fixedProject,
   accessibleProjects = [],
+  initialPagination,
+  initialFilters,
 }: DocumentLibraryClientProps) {
   const router = useRouter();
-  const [documents, setDocuments] = React.useState<DocumentDTO[]>(initialDocuments);
+  const pathname = usePathname();
+  const [isNavigating, startTransition] = React.useTransition();
+  const [documents, setDocuments] = usePropSyncedState<DocumentDTO[]>(initialDocuments);
 
   // Filter states
-  const [searchTerm, setSearchTerm] = React.useState("");
-  const [categoryFilter, setCategoryFilter] = React.useState<string>("ALL");
-  const [projectFilter, setProjectFilter] = React.useState<string>(
-    fixedProject ? fixedProject.id : "ALL"
+  const [searchTerm, setSearchTerm] = React.useState(initialFilters?.search ?? "");
+  const [categoryFilter, setCategoryFilter] = usePropSyncedState<string>(
+    initialFilters?.category ?? "ALL"
   );
-  const [sprintFilter, setSprintFilter] = React.useState<string>("ALL");
+  const [projectFilter, setProjectFilter] = usePropSyncedState<string>(
+    fixedProject ? fixedProject.id : (initialFilters?.projectId ?? "ALL")
+  );
+  const [sprintFilter, setSprintFilter] = usePropSyncedState<string>(
+    initialFilters?.sprintId ?? "ALL"
+  );
+
+  const navigateWithQuery = React.useCallback(
+    (overrides?: {
+      page?: number;
+      search?: string;
+      category?: string;
+      projectId?: string;
+      sprintId?: string;
+    }) => {
+      const nextPage = overrides?.page ?? 1;
+      const nextSearch = (overrides?.search ?? searchTerm).trim();
+      const nextCategory = overrides?.category ?? categoryFilter;
+      const nextProjectId = overrides?.projectId ?? projectFilter;
+      const nextSprintId = overrides?.sprintId ?? sprintFilter;
+
+      const targetUrl = buildUpdatedQueryUrl(pathname, {
+        page: nextPage > 1 ? nextPage : undefined,
+        search: nextSearch || undefined,
+        category: nextCategory !== "ALL" ? nextCategory : undefined,
+        projectId: mode === "global" && nextProjectId !== "ALL" ? nextProjectId : undefined,
+        sprintId: nextSprintId !== "ALL" ? nextSprintId : undefined,
+      });
+
+      startTransition(() => {
+        router.push(targetUrl);
+      });
+    },
+    [pathname, router, mode, searchTerm, categoryFilter, projectFilter, sprintFilter]
+  );
+
+  React.useEffect(() => {
+    if (!initialFilters) return;
+    const trimmedCurrent = searchTerm.trim();
+    const trimmedInitial = (initialFilters.search ?? "").trim();
+    if (trimmedCurrent === trimmedInitial) return;
+
+    const timer = window.setTimeout(() => {
+      navigateWithQuery({ page: 1, search: trimmedCurrent });
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [searchTerm, initialFilters, navigateWithQuery]);
 
   // Create / Edit Dialog state
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -265,9 +331,11 @@ export function DocumentLibraryClient({
         });
         if (!res.ok) {
           setFormError(res.error.message);
+          toast.error(res.error.message);
           return;
         }
         setDocuments((prev) => prev.map((d) => (d.id === res.data.id ? res.data : d)));
+        toast.success(`Đã cập nhật tài liệu "${res.data.title}".`);
       } else {
         const res = await createDocumentAction(targetProjectId, {
           title: formTitle,
@@ -278,9 +346,11 @@ export function DocumentLibraryClient({
         });
         if (!res.ok) {
           setFormError(res.error.message);
+          toast.error(res.error.message);
           return;
         }
         setDocuments((prev) => [res.data, ...prev]);
+        toast.success(`Đã thêm tài liệu "${res.data.title}".`);
       }
 
       setDialogOpen(false);
@@ -295,13 +365,16 @@ export function DocumentLibraryClient({
     setDeleteError(null);
     setDeleting(true);
     try {
+      const deletedTitle = deletingDoc.title;
       const res = await deleteDocumentAction(deletingDoc.id);
       if (!res.ok) {
         setDeleteError(res.error.message);
+        toast.error(res.error.message);
         return;
       }
       setDocuments((prev) => prev.filter((d) => d.id !== deletingDoc.id));
       setDeletingDoc(null);
+      toast.success(`Đã xóa tài liệu "${deletedTitle}".`);
       router.refresh();
     } finally {
       setDeleting(false);
@@ -328,8 +401,8 @@ export function DocumentLibraryClient({
               <FileText className="h-5 w-5 text-slate-700" />
               <span>
                 {mode === "project"
-                  ? `Tài liệu Project (${filteredDocuments.length})`
-                  : `Danh mục Tài liệu (${filteredDocuments.length})`}
+                  ? `Tài liệu Project (${initialPagination?.totalItems ?? filteredDocuments.length})`
+                  : `Danh mục Tài liệu (${initialPagination?.totalItems ?? filteredDocuments.length})`}
               </span>
             </CardTitle>
             <CardDescription>
@@ -354,6 +427,12 @@ export function DocumentLibraryClient({
                 placeholder="Tìm theo tiêu đề, mô tả, URL..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    navigateWithQuery({ page: 1, search: e.currentTarget.value });
+                  }
+                }}
                 className="pl-9"
               />
             </div>
@@ -362,8 +441,12 @@ export function DocumentLibraryClient({
               <select
                 value={projectFilter}
                 onChange={(e) => {
-                  setProjectFilter(e.target.value);
+                  const nextProj = e.target.value;
+                  setProjectFilter(nextProj);
                   setSprintFilter("ALL");
+                  if (initialFilters) {
+                    navigateWithQuery({ page: 1, projectId: nextProj, sprintId: "ALL" });
+                  }
                 }}
                 aria-label="Lọc theo Project"
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -379,7 +462,13 @@ export function DocumentLibraryClient({
 
             <select
               value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
+              onChange={(e) => {
+                const nextCategory = e.target.value;
+                setCategoryFilter(nextCategory);
+                if (initialFilters) {
+                  navigateWithQuery({ page: 1, category: nextCategory });
+                }
+              }}
               aria-label="Lọc theo danh mục"
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
@@ -394,7 +483,13 @@ export function DocumentLibraryClient({
             {(mode === "project" || projectFilter !== "ALL") && (
               <select
                 value={sprintFilter}
-                onChange={(e) => setSprintFilter(e.target.value)}
+                onChange={(e) => {
+                  const nextSprint = e.target.value;
+                  setSprintFilter(nextSprint);
+                  if (initialFilters) {
+                    navigateWithQuery({ page: 1, sprintId: nextSprint });
+                  }
+                }}
                 aria-label="Lọc theo Sprint"
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
@@ -547,6 +642,18 @@ export function DocumentLibraryClient({
                 </TableBody>
               </Table>
             </div>
+          )}
+
+          {initialPagination && (
+            <UrlPaginationControls
+              page={initialPagination.page}
+              pageSize={initialPagination.pageSize}
+              totalItems={initialPagination.totalItems}
+              totalPages={initialPagination.totalPages}
+              itemLabel="tài liệu"
+              isLoading={isNavigating}
+              onPageChange={(nextPage) => navigateWithQuery({ page: nextPage })}
+            />
           )}
         </CardContent>
       </Card>

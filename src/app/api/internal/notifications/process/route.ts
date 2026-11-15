@@ -1,8 +1,13 @@
 import { timingSafeEqual } from "node:crypto";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { unauthorizedError } from "@/lib/errors";
+import { cleanupExpiredRateLimitEventsBatch } from "@/lib/rate-limit";
 import { runDeadlineReminderBatch } from "@/modules/notifications/notification-deadline.service";
-import { processDueEmailDeliveriesBatch } from "@/modules/notifications/notification-delivery.service";
+import {
+  MAX_CRON_EMAIL_BATCH,
+  cleanupOldSmtpQuotaAttemptsBatch,
+  processDueEmailDeliveriesBatch,
+} from "@/modules/notifications/notification-delivery.service";
 
 export function verifyCronAuthorizationHeader(
   authHeader: string | null,
@@ -41,8 +46,15 @@ async function handleCronProcessRequest(request: Request) {
       );
     }
 
-    const deadlineReminders = await runDeadlineReminderBatch();
-    const emailDeliveries = await processDueEmailDeliveriesBatch(50);
+    const [deadlineReminders, deletedRateLimitEvents, deletedQuotaAttempts] = await Promise.all([
+      runDeadlineReminderBatch(),
+      cleanupExpiredRateLimitEventsBatch(200),
+      typeof cleanupOldSmtpQuotaAttemptsBatch === "function"
+        ? cleanupOldSmtpQuotaAttemptsBatch(200)
+        : Promise.resolve(0),
+    ]);
+
+    const emailDeliveries = await processDueEmailDeliveriesBatch(MAX_CRON_EMAIL_BATCH ?? 10);
 
     return apiSuccess({
       processedAt: new Date().toISOString(),
@@ -52,6 +64,10 @@ async function handleCronProcessRequest(request: Request) {
         createdReminders: deadlineReminders.createdReminders,
       },
       emailDeliveries,
+      cleanup: {
+        deletedRateLimitEvents,
+        deletedQuotaAttempts,
+      },
     });
   } catch (error) {
     return apiError(error, { route: "/api/internal/notifications/process" });

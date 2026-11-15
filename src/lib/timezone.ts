@@ -52,6 +52,8 @@ export function toProjectCalendarYmd(date: Date): string {
   return formatHcmYmd(date);
 }
 
+export const toBusinessCalendarYmd = toProjectCalendarYmd;
+
 /**
  * Formats an instant in DD/MM/YYYY HH:mm (Asia/Ho_Chi_Minh) for UI and notifications.
  */

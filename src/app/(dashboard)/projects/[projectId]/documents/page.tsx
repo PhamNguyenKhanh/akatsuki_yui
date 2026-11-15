@@ -6,10 +6,18 @@ import { DocumentLibraryClient } from "@/components/features/documents/document-
 import { ProjectStatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { isAppError } from "@/lib/errors";
+import {
+  parsePositivePageParam,
+  parseSafeQueryEnum,
+  pickSingleSearchParam,
+  type RawSearchParams,
+} from "@/lib/search-params";
+import { uuidSchema } from "@/lib/validations/common";
 import { PERMISSIONS } from "@/modules/authorization/constants";
 import { requirePermissionOrRedirect } from "@/modules/authorization/require-auth";
 import { canActorManageProjectDocuments } from "@/modules/documents/document.access";
 import { listProjectDocumentsService } from "@/modules/documents/document.service";
+import { documentCategorySchema } from "@/modules/documents/document.validation";
 import { assertProjectReadAccess } from "@/modules/projects/project.access";
 import { prisma } from "@/lib/prisma";
 
@@ -19,11 +27,29 @@ export const metadata: Metadata = {
 
 type ProjectDocumentsPageProps = {
   params: Promise<{ projectId: string }>;
+  searchParams?: Promise<RawSearchParams>;
 };
 
-export default async function ProjectDocumentsPage({ params }: ProjectDocumentsPageProps) {
+export default async function ProjectDocumentsPage({
+  params,
+  searchParams,
+}: ProjectDocumentsPageProps) {
   const actor = await requirePermissionOrRedirect(PERMISSIONS.DOCUMENT_READ);
-  const { projectId } = await params;
+  const [{ projectId }, resolvedSearchParams] = await Promise.all([
+    params,
+    searchParams ?? Promise.resolve({} as RawSearchParams),
+  ]);
+
+  const page = parsePositivePageParam(resolvedSearchParams.page, 1);
+  const search = pickSingleSearchParam(resolvedSearchParams.search)?.slice(0, 200);
+  const category = parseSafeQueryEnum(documentCategorySchema, resolvedSearchParams.category);
+  const rawSprint = pickSingleSearchParam(resolvedSearchParams.sprintId);
+  const sprintId =
+    rawSprint === "NONE"
+      ? "NONE"
+      : rawSprint && uuidSchema.safeParse(rawSprint).success
+        ? rawSprint
+        : undefined;
 
   let projectAccess;
   try {
@@ -37,7 +63,13 @@ export default async function ProjectDocumentsPage({ params }: ProjectDocumentsP
   }
 
   const [documentList, projectSprints] = await Promise.all([
-    listProjectDocumentsService(actor, projectAccess.id, { pageSize: 100 }),
+    listProjectDocumentsService(actor, projectAccess.id, {
+      page,
+      pageSize: 20,
+      ...(search ? { search } : {}),
+      ...(category ? { category } : {}),
+      ...(sprintId ? { sprintId } : {}),
+    }),
     prisma.sprint.findMany({
       where: { projectId: projectAccess.id },
       select: {
@@ -85,6 +117,18 @@ export default async function ProjectDocumentsPage({ params }: ProjectDocumentsP
           status: projectAccess.status,
           canManageDocuments,
           sprints: projectSprints,
+        }}
+        initialPagination={{
+          page: documentList.page,
+          pageSize: documentList.pageSize,
+          totalItems: documentList.totalItems,
+          totalPages: documentList.totalPages,
+        }}
+        initialFilters={{
+          search: search ?? "",
+          category: category ?? "ALL",
+          projectId: projectAccess.id,
+          sprintId: sprintId ?? "ALL",
         }}
       />
     </div>

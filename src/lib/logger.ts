@@ -11,23 +11,57 @@ const SENSITIVE_KEYS = new Set([
   "token",
   "apiKey",
   "authorization",
+  "smtpPass",
+  "oauthClientSecret",
+  "oauthRefreshToken",
+  "refreshToken",
+  "clientSecret",
+  "pass",
+  "databaseUrl",
+  "directUrl",
+  "testDatabaseUrl",
 ]);
 
-function redactValue(value: unknown): unknown {
+function maskEmailAddress(email: string): string {
+  const trimmed = email.trim();
+  const atIndex = trimmed.indexOf("@");
+  if (atIndex <= 0) {
+    return "[REDACTED_EMAIL]";
+  }
+  const local = trimmed.slice(0, atIndex);
+  const domain = trimmed.slice(atIndex + 1);
+  const visiblePrefix = local.length <= 2 ? local.slice(0, 1) : local.slice(0, 2);
+  return `${visiblePrefix}***@${domain}`;
+}
+
+function scrubConnectionUrls(text: string): string {
+  return text.replace(/postgres(?:ql)?:\/\/[^\s'"]+/gi, "[REDACTED_DB_URL]");
+}
+
+function redactValue(value: unknown, parentKey?: string): unknown {
+  if (typeof value === "string") {
+    if (parentKey && (parentKey === "email" || parentKey.toLowerCase().endsWith("email"))) {
+      return maskEmailAddress(value);
+    }
+    return scrubConnectionUrls(value);
+  }
   if (Array.isArray(value)) {
-    return value.map(redactValue);
+    return value.map((item) => redactValue(item, parentKey));
   }
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      const lower = k.toLowerCase();
       if (
         SENSITIVE_KEYS.has(k) ||
-        k.toLowerCase().includes("password") ||
-        k.toLowerCase().includes("secret")
+        lower.includes("password") ||
+        lower.includes("secret") ||
+        lower.includes("refreshtoken") ||
+        lower.includes("database_url")
       ) {
         out[k] = "[REDACTED]";
       } else {
-        out[k] = redactValue(v);
+        out[k] = redactValue(v, k);
       }
     }
     return out;
@@ -59,8 +93,8 @@ export const logger = {
   error(message: string, error?: unknown, context?: Record<string, unknown>) {
     const safeError =
       error instanceof Error
-        ? { name: error.name, message: error.message }
-        : { raw: String(error) };
+        ? { name: error.name, message: scrubConnectionUrls(error.message) }
+        : { raw: scrubConnectionUrls(String(error)) };
     console.error(
       JSON.stringify({
         level: "error",

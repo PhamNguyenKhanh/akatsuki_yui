@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { TemplatesManager } from "@/components/templates/templates-manager";
 import { PERMISSIONS } from "@/modules/authorization/constants";
-import { requireAnyPermissionOrRedirect } from "@/modules/authorization/require-auth";
+import { requirePermissionOrRedirect } from "@/modules/authorization/require-auth";
 import { listProjectTemplatesService } from "@/modules/project-templates/template.service";
 
 export const metadata: Metadata = {
@@ -9,10 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminTemplatesPage() {
-  const actor = await requireAnyPermissionOrRedirect([
-    PERMISSIONS.PROJECT_CREATE,
-    PERMISSIONS.ROLE_MANAGE,
-  ]);
+  const actor = await requirePermissionOrRedirect(PERMISSIONS.PROJECT_TEMPLATE_MANAGE);
   const result = await listProjectTemplatesService(actor, { page: 1, pageSize: 100 });
 
   return (

@@ -174,7 +174,7 @@ export async function addProjectMemberService(
       return { member, notificationHandles };
     });
 
-    schedulePostCommitEmailDispatch(created.notificationHandles);
+    await schedulePostCommitEmailDispatch(created.notificationHandles);
 
     logger.info("Project member added", {
       actorId: actor.userId,
@@ -288,7 +288,7 @@ export async function changeProjectLeaderService(
     });
   });
 
-  schedulePostCommitEmailDispatch(notificationHandles);
+  await schedulePostCommitEmailDispatch(notificationHandles);
 
   logger.info("Project leader changed", {
     actorId: actor.userId,
@@ -416,7 +416,7 @@ export async function removeProjectMemberService(
     return { updated, notificationHandles };
   });
 
-  schedulePostCommitEmailDispatch(removed.notificationHandles);
+  await schedulePostCommitEmailDispatch(removed.notificationHandles);
 
   logger.info("Project member removed (soft-leave)", {
     actorId: actor.userId,

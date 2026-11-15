@@ -26,11 +26,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatHcmDateTimeVi } from "@/lib/timezone";
+import { ACTIVITY_ENTITY_TYPES } from "@/modules/activity/activity.schema";
 import type { ActivityEntryDTO } from "@/modules/activity/activity.repository";
 import type {
   ActivityFeedPageDTO,
   ActivityFilterOptionsDTO,
 } from "@/modules/activity/activity.service";
+
+const ENTITY_TYPE_LABELS: Record<(typeof ACTIVITY_ENTITY_TYPES)[number], string> = {
+  Project: "Project",
+  ProjectMember: "Thành viên Project",
+  Sprint: "Sprint",
+  Document: "Tài liệu (Document)",
+  Task: "Task & Review",
+  User: "Tài khoản (User)",
+  Role: "Vai trò (Role)",
+  ProjectTemplate: "Mẫu dự án (Template)",
+};
 
 interface ActivityLogClientProps {
   initialFeed: ActivityFeedPageDTO;
@@ -54,7 +66,10 @@ export function ActivityLogClient({
 
   const [projectId, setProjectId] = React.useState<string>(initialProjectId || "ALL");
   const [sourceFilter, setSourceFilter] = React.useState<string>("ALL");
+  const [entityTypeFilter, setEntityTypeFilter] = React.useState<string>("ALL");
+  const [actionFilter, setActionFilter] = React.useState<string>("");
   const [actorId, setActorId] = React.useState<string>("ALL");
+  const [searchQuery, setSearchQuery] = React.useState<string>("");
   const [fromDate, setFromDate] = React.useState<string>("");
   const [toDate, setToDate] = React.useState<string>("");
 
@@ -67,7 +82,10 @@ export function ActivityLogClient({
     override?: {
       projectId?: string;
       source?: string;
+      entityType?: string;
+      action?: string;
       actorId?: string;
+      search?: string;
       from?: string;
       to?: string;
     }
@@ -77,13 +95,19 @@ export function ActivityLogClient({
 
     const pId = override?.projectId ?? projectId;
     const src = override?.source ?? sourceFilter;
+    const ent = override?.entityType ?? entityTypeFilter;
+    const act = override?.action ?? actionFilter;
     const aId = override?.actorId ?? actorId;
+    const q = override?.search ?? searchQuery;
     const fDate = override?.from ?? fromDate;
     const tDate = override?.to ?? toDate;
 
     if (pId && pId !== "ALL") params.set("projectId", pId);
     if (src && src !== "ALL") params.set("source", src);
-    if (aId && aId !== "ALL") params.set("actorId", aId);
+    if (ent && ent !== "ALL") params.set("entityType", ent);
+    if (act.trim()) params.set("action", act.trim());
+    if (aId && aId !== "ALL") params.set("userId", aId);
+    if (q.trim()) params.set("search", q.trim());
     if (fDate) params.set("from", fDate);
     if (tDate) params.set("to", tDate);
     if (cursor) params.set("cursor", cursor);
@@ -94,7 +118,10 @@ export function ActivityLogClient({
   async function fetchFreshPage(override?: {
     projectId?: string;
     source?: string;
+    entityType?: string;
+    action?: string;
     actorId?: string;
+    search?: string;
     from?: string;
     to?: string;
   }) {
@@ -153,13 +180,19 @@ export function ActivityLogClient({
   function handleResetFilters() {
     setProjectId("ALL");
     setSourceFilter("ALL");
+    setEntityTypeFilter("ALL");
+    setActionFilter("");
     setActorId("ALL");
+    setSearchQuery("");
     setFromDate("");
     setToDate("");
     void fetchFreshPage({
       projectId: "ALL",
       source: "ALL",
+      entityType: "ALL",
+      action: "",
       actorId: "ALL",
+      search: "",
       from: "",
       to: "",
     });
@@ -298,6 +331,51 @@ export function ActivityLogClient({
                 type="date"
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label htmlFor="act-search" className="mb-1 block text-xs font-medium text-slate-700">
+                Từ khóa (Mô tả / Task)
+              </label>
+              <Input
+                id="act-search"
+                type="text"
+                placeholder="Tìm theo nội dung, tiêu đề Task..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                maxLength={200}
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-slate-700">Đối tượng (Entity)</label>
+              <Select value={entityTypeFilter} onValueChange={setEntityTypeFilter}>
+                <SelectTrigger aria-label="Lọc theo loại đối tượng">
+                  <SelectValue placeholder="Tất cả đối tượng" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Tất cả đối tượng</SelectItem>
+                  {ACTIVITY_ENTITY_TYPES.map((ent) => (
+                    <SelectItem key={ent} value={ent}>
+                      {ENTITY_TYPE_LABELS[ent]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label htmlFor="act-action" className="mb-1 block text-xs font-medium text-slate-700">
+                Mã hành động (Action)
+              </label>
+              <Input
+                id="act-action"
+                type="text"
+                placeholder="VD: PROJECT_CREATED, REVIEW_APPROVED..."
+                value={actionFilter}
+                onChange={(e) => setActionFilter(e.target.value)}
+                maxLength={100}
               />
             </div>
 

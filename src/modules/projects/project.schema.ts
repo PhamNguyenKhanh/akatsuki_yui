@@ -1,6 +1,6 @@
 import { ProjectStatus } from "@prisma/client";
 import { z } from "zod";
-import { paginationQuerySchema, uuidSchema } from "@/lib/validations/common";
+import { isSafeHttpUrl, paginationQuerySchema, uuidSchema } from "@/lib/validations/common";
 
 const nullableTextSchema = (maxLength: number, fieldLabel: string) =>
   z
@@ -18,18 +18,9 @@ const optionalRepositoryUrlSchema = z
   .nullable()
   .optional()
   .transform((value) => (value && value.length > 0 ? value : null))
-  .refine(
-    (value) => {
-      if (value === null) return true;
-      try {
-        const parsed = new URL(value);
-        return parsed.protocol === "http:" || parsed.protocol === "https:";
-      } catch {
-        return false;
-      }
-    },
-    { message: "Repository URL phải bắt đầu bằng http:// hoặc https://." }
-  );
+  .refine((value) => (value === null ? true : isSafeHttpUrl(value)), {
+    message: "Repository URL phải bắt đầu bằng http:// hoặc https:// và không chứa thông tin đăng nhập.",
+  });
 
 const technologiesSchema = z
   .array(z.string().trim().min(1).max(50, "Mỗi công nghệ tối đa 50 ký tự."))

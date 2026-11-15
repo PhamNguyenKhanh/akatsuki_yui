@@ -105,7 +105,7 @@ function readEstimateField(record: unknown): { present: boolean; value: number |
   };
 }
 
-function touchesEstimateField(event: EstimateHistoryEventLike): boolean {
+export function touchesEstimateField(event: EstimateHistoryEventLike): boolean {
   return readEstimateField(event.oldValue).present || readEstimateField(event.newValue).present;
 }
 
@@ -192,17 +192,26 @@ export function resolveTaskEstimateAt(
   let cursorValue = normalizeEstimateHours(task.estimateHours);
   let isChainComplete = true;
   let rolledBackCount = 0;
+  let resumeIndex = sortedDesc.length;
 
-  for (const event of sortedDesc) {
+  for (let i = 0; i < sortedDesc.length; i += 1) {
+    const event = sortedDesc[i];
     const evMs = event.createdAt.getTime();
     if (evMs <= targetMs) {
+      resumeIndex = i;
       break;
     }
 
     if (event.action === "CREATED") {
+      // Cross-check initial CREATED estimate against oldest post-creation cursor before zeroing out pre-creation.
+      const createdField = readEstimateField(event.newValue);
+      if (createdField.present && !estimateValuesEqual(cursorValue, createdField.value)) {
+        isChainComplete = false;
+      }
       // Task did not exist yet at targetInstant if creation occurred afterward.
       cursorValue = null;
       rolledBackCount += 1;
+      resumeIndex = sortedDesc.length;
       break;
     }
 
@@ -233,6 +242,46 @@ export function resolveTaskEstimateAt(
 
     cursorValue = oldField.value;
     rolledBackCount += 1;
+  }
+
+  // Validate diff chain integrity from targetInstant back to CREATED without mutating cursorValue.
+  if (isChainComplete && resumeIndex < sortedDesc.length) {
+    let chainCursor = cursorValue;
+    for (let j = resumeIndex; j < sortedDesc.length; j += 1) {
+      const event = sortedDesc[j];
+      if (event.action === "CREATED") {
+        const createdField = readEstimateField(event.newValue);
+        if (createdField.present && !estimateValuesEqual(chainCursor, createdField.value)) {
+          isChainComplete = false;
+        }
+        break;
+      }
+
+      if (event.action !== "INFO_UPDATED") {
+        continue;
+      }
+
+      const oldField = readEstimateField(event.oldValue);
+      const newField = readEstimateField(event.newValue);
+      if (!oldField.present && !newField.present) {
+        continue;
+      }
+
+      if (!newField.present || !oldField.present) {
+        isChainComplete = false;
+        if (oldField.present) {
+          chainCursor = oldField.value;
+          continue;
+        }
+        break;
+      }
+
+      if (!estimateValuesEqual(chainCursor, newField.value)) {
+        isChainComplete = false;
+        break;
+      }
+      chainCursor = oldField.value;
+    }
   }
 
   let source: EstimateResolutionSource;

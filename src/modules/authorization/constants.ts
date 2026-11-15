@@ -18,6 +18,7 @@ export const PERMISSIONS = {
   PROJECT_ACTIVATE: "project.activate",
   PROJECT_ARCHIVE: "project.archive",
   PROJECT_RESTORE: "project.restore",
+  PROJECT_TEMPLATE_MANAGE: "project.template.manage",
   PROJECT_MEMBER_MANAGE: "project.member.manage",
   TASK_CREATE: "task.create",
   TASK_READ: "task.read",
@@ -101,6 +102,11 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     code: PERMISSIONS.PROJECT_RESTORE,
     name: "Restore Project",
     description: "Khôi phục Project Archived (Admin only)",
+  },
+  {
+    code: PERMISSIONS.PROJECT_TEMPLATE_MANAGE,
+    name: "Manage Project Templates",
+    description: "Tạo, chỉnh sửa và xóa Project Template",
   },
   {
     code: PERMISSIONS.PROJECT_MEMBER_MANAGE,
@@ -194,6 +200,7 @@ export const ROLE_DEFINITIONS: Record<
       PERMISSIONS.PROJECT_ACTIVATE,
       PERMISSIONS.PROJECT_ARCHIVE,
       PERMISSIONS.PROJECT_RESTORE,
+      PERMISSIONS.PROJECT_TEMPLATE_MANAGE,
       PERMISSIONS.PROJECT_MEMBER_MANAGE,
       PERMISSIONS.TASK_CREATE,
       PERMISSIONS.TASK_READ,

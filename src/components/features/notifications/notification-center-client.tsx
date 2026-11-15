@@ -1,12 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { NotificationType } from "@prisma/client";
 import { Bell, Check, CheckCheck, ExternalLink, MailOpen } from "lucide-react";
+import { toast } from "sonner";
+import { UrlPaginationControls } from "@/components/shared/url-pagination-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { buildUpdatedQueryUrl } from "@/lib/search-params";
+import { usePropSyncedState } from "@/lib/use-prop-synced-state";
 import { cn } from "@/lib/utils";
 import {
   markAllNotificationsReadAction,
@@ -42,19 +46,54 @@ function formatDateTime(isoString: string): string {
 interface NotificationCenterClientProps {
   initialNotifications: NotificationDTO[];
   initialUnreadCount: number;
+  initialPagination?: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+  };
+  initialFilters?: {
+    status: "all" | "unread" | "read";
+    type: string;
+  };
 }
 
 export function NotificationCenterClient({
   initialNotifications,
   initialUnreadCount,
+  initialPagination,
+  initialFilters,
 }: NotificationCenterClientProps) {
   const router = useRouter();
-  const [items, setItems] = React.useState<NotificationDTO[]>(initialNotifications);
-  const [unreadCount, setUnreadCount] = React.useState<number>(initialUnreadCount);
-  const [statusFilter, setStatusFilter] = React.useState<"all" | "unread" | "read">("all");
-  const [typeFilter, setTypeFilter] = React.useState<string>("ALL");
+  const pathname = usePathname();
+  const [isNavigating, startTransition] = React.useTransition();
+  const [items, setItems] = usePropSyncedState<NotificationDTO[]>(initialNotifications);
+  const [unreadCount, setUnreadCount] = usePropSyncedState<number>(initialUnreadCount);
+  const [statusFilter, setStatusFilter] = usePropSyncedState<"all" | "unread" | "read">(
+    initialFilters?.status ?? "all"
+  );
+  const [typeFilter, setTypeFilter] = usePropSyncedState<string>(initialFilters?.type ?? "ALL");
   const [busyId, setBusyId] = React.useState<string | null>(null);
   const [markingAll, setMarkingAll] = React.useState(false);
+
+  const navigateWithQuery = React.useCallback(
+    (overrides?: { page?: number; status?: "all" | "unread" | "read"; type?: string }) => {
+      const nextPage = overrides?.page ?? 1;
+      const nextStatus = overrides?.status ?? statusFilter;
+      const nextType = overrides?.type ?? typeFilter;
+
+      const targetUrl = buildUpdatedQueryUrl(pathname, {
+        page: nextPage > 1 ? nextPage : undefined,
+        status: nextStatus !== "all" ? nextStatus : undefined,
+        type: nextType !== "ALL" ? nextType : undefined,
+      });
+
+      startTransition(() => {
+        router.push(targetUrl);
+      });
+    },
+    [pathname, router, statusFilter, typeFilter]
+  );
 
   const filteredItems = React.useMemo(() => {
     return items.filter((item) => {
@@ -74,7 +113,10 @@ export function NotificationCenterClient({
         setUnreadCount((prev) =>
           nextRead ? Math.max(0, prev - (item.isRead ? 0 : 1)) : prev + (item.isRead ? 1 : 0)
         );
+        toast.success(nextRead ? "Đã đánh dấu đã đọc." : "Đã đánh dấu chưa đọc.");
         router.refresh();
+      } else {
+        toast.error(res.error.message);
       }
     } finally {
       setBusyId(null);
@@ -100,7 +142,10 @@ export function NotificationCenterClient({
           prev.map((n) => (n.isRead ? n : { ...n, isRead: true, readAt: nowIso }))
         );
         setUnreadCount(0);
+        toast.success(`Đã đánh dấu ${res.data.updatedCount} thông báo là đã đọc.`);
         router.refresh();
+      } else {
+        toast.error(res.error.message);
       }
     } finally {
       setMarkingAll(false);
@@ -113,7 +158,7 @@ export function NotificationCenterClient({
         <div>
           <CardTitle className="flex items-center gap-2 text-base">
             <Bell className="h-5 w-5 text-slate-700" />
-            <span>Hộp thư Thông báo ({filteredItems.length})</span>
+            <span>Hộp thư Thông báo ({initialPagination?.totalItems ?? filteredItems.length})</span>
             {unreadCount > 0 && (
               <Badge variant="default" className="text-xs">
                 {unreadCount} chưa đọc
@@ -148,15 +193,21 @@ export function NotificationCenterClient({
               type="button"
               size="sm"
               variant={statusFilter === "all" ? "default" : "outline"}
-              onClick={() => setStatusFilter("all")}
+              onClick={() => {
+                setStatusFilter("all");
+                if (initialFilters) navigateWithQuery({ page: 1, status: "all" });
+              }}
             >
-              Tất cả ({items.length})
+              Tất cả
             </Button>
             <Button
               type="button"
               size="sm"
               variant={statusFilter === "unread" ? "default" : "outline"}
-              onClick={() => setStatusFilter("unread")}
+              onClick={() => {
+                setStatusFilter("unread");
+                if (initialFilters) navigateWithQuery({ page: 1, status: "unread" });
+              }}
             >
               Chưa đọc ({unreadCount})
             </Button>
@@ -164,16 +215,23 @@ export function NotificationCenterClient({
               type="button"
               size="sm"
               variant={statusFilter === "read" ? "default" : "outline"}
-              onClick={() => setStatusFilter("read")}
+              onClick={() => {
+                setStatusFilter("read");
+                if (initialFilters) navigateWithQuery({ page: 1, status: "read" });
+              }}
             >
-              Đã đọc ({Math.max(0, items.length - unreadCount)})
+              Đã đọc
             </Button>
           </div>
 
           <div className="w-full sm:w-64">
             <select
               value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
+              onChange={(e) => {
+                const nextType = e.target.value;
+                setTypeFilter(nextType);
+                if (initialFilters) navigateWithQuery({ page: 1, type: nextType });
+              }}
               aria-label="Lọc theo loại thông báo"
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
@@ -279,6 +337,18 @@ export function NotificationCenterClient({
               </div>
             ))}
           </div>
+        )}
+
+        {initialPagination && (
+          <UrlPaginationControls
+            page={initialPagination.page}
+            pageSize={initialPagination.pageSize}
+            totalItems={initialPagination.totalItems}
+            totalPages={initialPagination.totalPages}
+            itemLabel="thông báo"
+            isLoading={isNavigating}
+            onPageChange={(nextPage) => navigateWithQuery({ page: nextPage })}
+          />
         )}
       </CardContent>
     </Card>

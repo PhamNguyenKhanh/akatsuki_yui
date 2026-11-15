@@ -22,6 +22,7 @@ model User {
   fullName             String           @db.VarChar(150)
   avatarUrl            String?          @db.Text
   status               UserStatus       @default(PENDING)
+  tokenVersion         Int              @default(0)
   approvedAt           DateTime?
   approvedById         String?          @db.Uuid
   approvedBy           User?            @relation("UserApprover", fields: [approvedById], references: [id], onDelete: SetNull)
@@ -405,6 +406,7 @@ enum NotificationDeliveryStatus {
   PENDING
   SENT
   FAILED
+  UNKNOWN
 }
 
 model Document {
@@ -464,7 +466,7 @@ model NotificationDelivery {
   channel           NotificationChannel        @default(EMAIL)
   recipientEmail    String                     @db.VarChar(255)
   status            NotificationDeliveryStatus @default(PENDING)
-  provider          String                     @default("RESEND") @db.VarChar(50)
+  provider          String                     @default("SMTP") @db.VarChar(50)
   providerMessageId String?                    @db.VarChar(255)
   retryCount        Int                        @default(0)
   lastAttemptAt     DateTime?
@@ -485,4 +487,23 @@ model NotificationDelivery {
   @@index([status, lockedAt])
   @@index([recipientEmail, createdAt(sort: Desc)])
   @@index([createdAt(sort: Desc)])
+}
+
+model RateLimitEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  keyHash   String   @db.VarChar(64)
+  scope     String   @db.VarChar(50)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([keyHash, createdAt])
+  @@index([expiresAt])
+}
+
+model SmtpQuotaAttempt {
+  id         String   @id @default(uuid()) @db.Uuid
+  deliveryId String?  @db.Uuid
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
 }

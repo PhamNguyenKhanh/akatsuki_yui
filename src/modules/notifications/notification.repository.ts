@@ -133,6 +133,8 @@ export function mapNotificationToDTO(record: NotificationRecord): NotificationDT
 export function mapNotificationDeliveryToDTO(
   record: NotificationDeliveryRecord
 ): NotificationDeliveryDTO {
+  const requiresReview = record.status === NotificationDeliveryStatus.UNKNOWN;
+
   const isTerminalFailure =
     record.status === NotificationDeliveryStatus.FAILED &&
     (record.retryCount >= MAX_EMAIL_RETRIES || record.nextRetryAt === null);
@@ -153,6 +155,7 @@ export function mapNotificationDeliveryToDTO(
     retryCount: record.retryCount,
     maxRetries: MAX_EMAIL_RETRIES,
     isTerminalFailure,
+    requiresReview,
     canManualRetry,
     lastAttemptAt: record.lastAttemptAt ? record.lastAttemptAt.toISOString() : null,
     nextRetryAt: record.nextRetryAt ? record.nextRetryAt.toISOString() : null,
@@ -263,6 +266,8 @@ export const notificationRepository = {
         status: NotificationDeliveryStatus.FAILED,
         OR: [{ retryCount: { gte: MAX_EMAIL_RETRIES } }, { nextRetryAt: null }],
       });
+    } else if (query.status === "UNKNOWN") {
+      andConditions.push({ status: NotificationDeliveryStatus.UNKNOWN });
     }
 
     if (query.type) {
@@ -292,6 +297,7 @@ export const notificationRepository = {
       sentCount,
       retryableFailedCount,
       terminalFailedCount,
+      unknownReviewCount,
     ] = await Promise.all([
       tx.notificationDelivery.findMany({
         where,
@@ -322,6 +328,12 @@ export const notificationRepository = {
           OR: [{ retryCount: { gte: MAX_EMAIL_RETRIES } }, { nextRetryAt: null }],
         },
       }),
+      tx.notificationDelivery.count({
+        where: {
+          channel: NotificationChannel.EMAIL,
+          status: NotificationDeliveryStatus.UNKNOWN,
+        },
+      }),
     ]);
 
     return {
@@ -332,6 +344,7 @@ export const notificationRepository = {
         sentCount,
         retryableFailedCount,
         terminalFailedCount,
+        unknownReviewCount,
       },
       page: query.page,
       pageSize: query.pageSize,

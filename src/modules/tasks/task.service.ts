@@ -1,5 +1,6 @@
 import "server-only";
 import { TaskHistoryAction, TaskStatus, type Prisma } from "@prisma/client";
+import { acquireProjectShareLock } from "@/lib/db-locks";
 import { badRequestError, conflictError, forbiddenError, notFoundError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS } from "@/modules/authorization/constants";
@@ -153,6 +154,7 @@ export async function createTaskService(
   }
 
   const result = await prisma.$transaction(async (tx) => {
+    await acquireProjectShareLock(tx, validProjectId);
     const project = await assertProjectLeaderAccess(actor, validProjectId, tx);
     assertProjectNotArchivedForTaskMutation(project.status);
 
@@ -239,7 +241,7 @@ export async function createTaskService(
     };
   });
 
-  schedulePostCommitEmailDispatch(result.notificationHandles);
+  await schedulePostCommitEmailDispatch(result.notificationHandles);
 
   if (result.assigneeIds.length > 0) {
     await emitTaskEventAfterCommit({

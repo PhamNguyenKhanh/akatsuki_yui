@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { isPrismaUniqueViolation } from "@/lib/prisma-errors";
 import { uuidSchema } from "@/lib/validations/common";
 import { PERMISSIONS } from "@/modules/authorization/constants";
-import { assertAnyPermission, assertPermission } from "@/modules/authorization/policy.service";
+import { assertPermission } from "@/modules/authorization/policy.service";
 import {
   mapTemplateToDTO,
   projectTemplateRepository,
@@ -33,7 +33,7 @@ function parseTemplateId(templateId: string): string {
 }
 
 function assertTemplateManagePermission(actor: AuthContext) {
-  assertAnyPermission(actor, [PERMISSIONS.PROJECT_CREATE, PERMISSIONS.ROLE_MANAGE]);
+  assertPermission(actor, PERMISSIONS.PROJECT_TEMPLATE_MANAGE);
 }
 
 export async function listProjectTemplatesService(

@@ -23,7 +23,14 @@ export function apiError(error: unknown, context?: { route?: string }) {
         ...(error.details ? { details: error.details } : {}),
       },
     };
-    return NextResponse.json(body, { status: error.statusCode });
+    const headers: Record<string, string> = {};
+    if (error.statusCode === 429 && typeof error.retryAfterSeconds === "number") {
+      headers["Retry-After"] = String(Math.max(1, Math.ceil(error.retryAfterSeconds)));
+    }
+    return NextResponse.json(body, {
+      status: error.statusCode,
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+    });
   }
 
   if (error instanceof ZodError) {
