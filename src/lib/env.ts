@@ -38,10 +38,7 @@ const serverEnvSchema = z.object({
   SMTP_HOST: optionalTrimmed,
   SMTP_PORT: positiveIntWithDefault(587, 1, 65535),
   SMTP_SECURE: booleanFlagSchema,
-  SMTP_AUTH_MODE: z
-    .enum(["password", "oauth2"])
-    .optional()
-    .default("password"),
+  SMTP_AUTH_MODE: z.enum(["password", "oauth2"]).optional().default("password"),
   SMTP_USER: optionalTrimmed,
   SMTP_PASS: optionalTrimmed,
   SMTP_OAUTH_CLIENT_ID: optionalTrimmed,
@@ -139,5 +136,80 @@ export function getSmtpConfigFromEnv(
     dailySendLimit,
     perMinuteLimit,
     missingFields,
+  };
+}
+
+export interface RuntimeEnvValidationResult {
+  valid: boolean;
+  missingRequired: string[];
+  warnings: string[];
+  smtpConfigured: boolean;
+  smtpMissingFields: string[];
+}
+
+export function isPooledDatabaseUrl(url: string): boolean {
+  const normalized = url.trim().toLowerCase();
+  return (
+    normalized.includes("-pooler.") ||
+    normalized.includes("pgbouncer=true") ||
+    normalized.includes("pool_mode=")
+  );
+}
+
+/**
+ * Validates runtime environment completeness without requiring migration-only
+ * `DIRECT_URL` inside serverless app containers (`DEC-067`), and never exposes secrets.
+ */
+export function validateRuntimeEnvironment(
+  env: Record<string, string | undefined> = process.env
+): RuntimeEnvValidationResult {
+  const missingRequired: string[] = [];
+  const warnings: string[] = [];
+  const nodeEnv = env.NODE_ENV?.trim() || "development";
+  const isProd = nodeEnv === "production";
+
+  const databaseUrl = env.DATABASE_URL?.trim();
+  if (!databaseUrl) {
+    missingRequired.push("DATABASE_URL");
+  } else if (!/^postgres(?:ql)?:\/\//i.test(databaseUrl)) {
+    warnings.push("DATABASE_URL must use postgresql:// or postgres:// scheme.");
+  } else if (isProd && databaseUrl.includes("neon.tech") && !isPooledDatabaseUrl(databaseUrl)) {
+    warnings.push(
+      "DATABASE_URL appears to use a direct Neon endpoint in production; prefer the Neon pooler hostname (-pooler) for Vercel Functions (DEC-067)."
+    );
+  }
+
+  const authSecret = env.AUTH_SECRET?.trim();
+  if (!authSecret) {
+    missingRequired.push("AUTH_SECRET");
+  } else {
+    if (isProd && authSecret.length < 32) {
+      missingRequired.push("AUTH_SECRET (minimum 32 characters in production)");
+    } else if (authSecret.length < 16) {
+      missingRequired.push("AUTH_SECRET (minimum 16 characters)");
+    }
+    if (/^(replace-with|changeme|dev-secret|test-secret)/i.test(authSecret) && isProd) {
+      missingRequired.push("AUTH_SECRET (placeholder secret forbidden in production)");
+    }
+  }
+
+  if (isProd && !env.CRON_SECRET?.trim()) {
+    missingRequired.push("CRON_SECRET");
+  }
+  if (isProd && !env.AUTH_URL?.trim() && !env.NEXT_PUBLIC_APP_URL?.trim()) {
+    warnings.push("AUTH_URL or NEXT_PUBLIC_APP_URL should be set in production.");
+  }
+
+  const smtp = getSmtpConfigFromEnv(env);
+  if (!smtp.configured) {
+    warnings.push(`SMTP configuration incomplete (${smtp.missingFields.join(", ")}).`);
+  }
+
+  return {
+    valid: missingRequired.length === 0,
+    missingRequired,
+    warnings,
+    smtpConfigured: smtp.configured,
+    smtpMissingFields: smtp.missingFields,
   };
 }
