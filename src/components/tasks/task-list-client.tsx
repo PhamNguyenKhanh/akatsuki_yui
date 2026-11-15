@@ -181,14 +181,25 @@ export function TaskListClient({
               trễ hạn.
             </CardDescription>
           </div>
-          {canCreateTask && !isArchived && (
-            <Button asChild size="sm">
-              <Link href={`/projects/${projectId}/tasks/new`}>
-                <Plus className="h-4 w-4" />
-                <span>Tạo Task mới</span>
-              </Link>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/projects/${projectId}/backlog`}>Product Backlog</Link>
             </Button>
-          )}
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/projects/${projectId}/sprints`}>Sprints</Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/projects/${projectId}/kanban`}>Kanban</Link>
+            </Button>
+            {canCreateTask && !isArchived && (
+              <Button asChild size="sm">
+                <Link href={`/projects/${projectId}/tasks/new`}>
+                  <Plus className="h-4 w-4" />
+                  <span>Tạo Task mới</span>
+                </Link>
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
           <form onSubmit={applySearchSubmit} className="flex flex-col gap-2 sm:flex-row">
@@ -345,11 +356,26 @@ export function TaskListClient({
                               {task.title}
                             </Link>
                           </div>
-                          {task.estimateHours !== null && (
-                            <span className="text-xs text-muted-foreground">
-                              Ước lượng: {task.estimateHours} giờ
-                            </span>
-                          )}
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            {task.sprint ? (
+                              <Link
+                                href={`/projects/${projectId}/sprints/${task.sprint.id}`}
+                                className="inline-flex items-center rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 font-medium text-indigo-800 hover:underline"
+                              >
+                                Sprint: {task.sprint.name}
+                              </Link>
+                            ) : (
+                              <Link
+                                href={`/projects/${projectId}/backlog`}
+                                className="inline-flex items-center rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-medium text-slate-700 hover:underline"
+                              >
+                                Product Backlog
+                              </Link>
+                            )}
+                            {task.estimateHours !== null && (
+                              <span>Ước lượng: {task.estimateHours} giờ</span>
+                            )}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>

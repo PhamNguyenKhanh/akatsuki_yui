@@ -5,10 +5,17 @@ import {
   TaskStatus,
   type Prisma,
   type ReviewDecision,
+  type SprintStatus,
   type UserStatus,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatTaskCode, type ParsedTaskListQuery } from "@/modules/tasks/task.schema";
+
+export interface TaskSprintRefDTO {
+  id: string;
+  name: string;
+  status: SprintStatus;
+}
 
 export interface TaskUserSummaryDTO {
   id: string;
@@ -85,6 +92,8 @@ export interface TaskSummaryDTO {
   id: string;
   code: string;
   projectId: string;
+  sprintId?: string | null;
+  sprint?: TaskSprintRefDTO | null;
   createdById: string;
   createdBy: {
     id: string;
@@ -206,9 +215,17 @@ const taskDependencySelect = {
   },
 } satisfies Prisma.TaskDependencySelect;
 
-const taskSummarySelect = {
+export const taskSummarySelect = {
   id: true,
   projectId: true,
+  sprintId: true,
+  sprint: {
+    select: {
+      id: true,
+      name: true,
+      status: true,
+    },
+  },
   createdById: true,
   createdBy: {
     select: {
@@ -253,6 +270,14 @@ const taskSummarySelect = {
 const taskDetailSelect = {
   id: true,
   projectId: true,
+  sprintId: true,
+  sprint: {
+    select: {
+      id: true,
+      name: true,
+      status: true,
+    },
+  },
   createdById: true,
   createdBy: {
     select: {
@@ -338,7 +363,7 @@ const taskDetailSelect = {
 type RawTaskSummary = Prisma.TaskGetPayload<{ select: typeof taskSummarySelect }>;
 type RawTaskDetail = Prisma.TaskGetPayload<{ select: typeof taskDetailSelect }>;
 
-function mapTaskSummary(row: RawTaskSummary, now: Date): TaskSummaryDTO {
+export function mapTaskSummary(row: RawTaskSummary, now: Date): TaskSummaryDTO {
   const dependencyCount = row.dependencies.length;
   const blockedByCount = row.dependencies.filter(
     (dep) => dep.dependsOnTask.status !== TaskStatus.DONE
@@ -348,6 +373,8 @@ function mapTaskSummary(row: RawTaskSummary, now: Date): TaskSummaryDTO {
     id: row.id,
     code: formatTaskCode(row.id),
     projectId: row.projectId,
+    sprintId: row.sprintId,
+    sprint: row.sprint,
     createdById: row.createdById,
     createdBy: row.createdBy,
     title: row.title,
@@ -397,6 +424,8 @@ function mapTaskDetail(row: RawTaskDetail, now: Date): TaskDetailDTO {
     id: row.id,
     code: formatTaskCode(row.id),
     projectId: row.projectId,
+    sprintId: row.sprintId,
+    sprint: row.sprint,
     project: row.project,
     createdById: row.createdById,
     createdBy: row.createdBy,
@@ -424,6 +453,83 @@ function mapTaskDetail(row: RawTaskDetail, now: Date): TaskDetailDTO {
   };
 }
 
+export interface TaskFilterCriteria {
+  search?: string;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  assigneeId?: string;
+  unassignedOnly?: boolean;
+  overdueOnly?: boolean;
+  sprintId?: string;
+  backlogOnly?: boolean;
+  deadlineFrom?: Date;
+  deadlineTo?: Date;
+}
+
+export function buildTaskProjectWhereInput(
+  projectId: string,
+  filter: TaskFilterCriteria,
+  now: Date = new Date()
+): Prisma.TaskWhereInput {
+  const andConditions: Prisma.TaskWhereInput[] = [{ projectId }];
+
+  if (filter.status) {
+    andConditions.push({ status: filter.status });
+  }
+  if (filter.priority) {
+    andConditions.push({ priority: filter.priority });
+  }
+  if (filter.backlogOnly === true) {
+    andConditions.push({ sprintId: null });
+  } else if (filter.sprintId) {
+    andConditions.push({ sprintId: filter.sprintId });
+  }
+  if (filter.deadlineFrom || filter.deadlineTo) {
+    andConditions.push({
+      deadline: {
+        ...(filter.deadlineFrom ? { gte: filter.deadlineFrom } : {}),
+        ...(filter.deadlineTo ? { lte: filter.deadlineTo } : {}),
+      },
+    });
+  }
+  if (filter.unassignedOnly) {
+    andConditions.push({
+      assignees: {
+        none: {
+          removedAt: null,
+        },
+      },
+    });
+  } else if (filter.assigneeId) {
+    andConditions.push({
+      assignees: {
+        some: {
+          userId: filter.assigneeId,
+          removedAt: null,
+        },
+      },
+    });
+  }
+  if (filter.overdueOnly) {
+    andConditions.push({
+      status: { not: TaskStatus.DONE },
+      deadline: { lt: now },
+    });
+  }
+
+  const normalizedSearch = filter.search?.replace(/^#/, "").trim();
+  if (normalizedSearch && normalizedSearch.length > 0) {
+    andConditions.push({
+      OR: [
+        { title: { contains: normalizedSearch, mode: "insensitive" } },
+        { description: { contains: normalizedSearch, mode: "insensitive" } },
+      ],
+    });
+  }
+
+  return andConditions.length === 1 ? andConditions[0] : { AND: andConditions };
+}
+
 export const taskRepository = {
   async findManyByProjectPaginated(
     projectId: string,
@@ -438,51 +544,7 @@ export const taskRepository = {
   }> {
     const now = new Date();
     const skip = (query.page - 1) * query.pageSize;
-    const andConditions: Prisma.TaskWhereInput[] = [{ projectId }];
-
-    if (query.status) {
-      andConditions.push({ status: query.status });
-    }
-    if (query.priority) {
-      andConditions.push({ priority: query.priority });
-    }
-    if (query.unassignedOnly) {
-      andConditions.push({
-        assignees: {
-          none: {
-            removedAt: null,
-          },
-        },
-      });
-    } else if (query.assigneeId) {
-      andConditions.push({
-        assignees: {
-          some: {
-            userId: query.assigneeId,
-            removedAt: null,
-          },
-        },
-      });
-    }
-    if (query.overdueOnly) {
-      andConditions.push({
-        status: { not: TaskStatus.DONE },
-        deadline: { lt: now },
-      });
-    }
-
-    const normalizedSearch = query.search?.replace(/^#/, "").trim();
-    if (normalizedSearch && normalizedSearch.length > 0) {
-      andConditions.push({
-        OR: [
-          { title: { contains: normalizedSearch, mode: "insensitive" } },
-          { description: { contains: normalizedSearch, mode: "insensitive" } },
-        ],
-      });
-    }
-
-    const where: Prisma.TaskWhereInput =
-      andConditions.length === 1 ? andConditions[0] : { AND: andConditions };
+    const where = buildTaskProjectWhereInput(projectId, query, now);
 
     const orderBy: Prisma.TaskOrderByWithRelationInput[] = [
       { [query.sortBy]: query.sortOrder },

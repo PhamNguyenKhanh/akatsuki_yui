@@ -186,6 +186,25 @@ export function TaskDetailPanel({
               </Badge>
               <TaskStatusBadge status={task.status} />
               <TaskPriorityBadge priority={task.priority} />
+              {task.sprint ? (
+                <Link href={`/projects/${task.projectId}/sprints/${task.sprint.id}`}>
+                  <Badge
+                    variant="outline"
+                    className="border-indigo-300 bg-indigo-50 text-indigo-800 hover:bg-indigo-100"
+                  >
+                    Sprint: {task.sprint.name}
+                  </Badge>
+                </Link>
+              ) : (
+                <Link href={`/projects/${task.projectId}/backlog`}>
+                  <Badge
+                    variant="outline"
+                    className="border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                  >
+                    Product Backlog
+                  </Badge>
+                </Link>
+              )}
               {task.isOverdue && (
                 <Badge variant="outline" className="border-red-300 bg-red-50 text-red-800">
                   Quá hạn

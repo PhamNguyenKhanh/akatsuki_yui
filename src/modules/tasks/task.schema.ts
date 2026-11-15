@@ -134,6 +134,29 @@ const optionalBooleanQuerySchema = z.preprocess((raw) => {
   return raw;
 }, z.boolean().optional());
 
+const parseFilterDateBound = (raw: unknown, bound: "start" | "end") => {
+  if (raw === undefined || raw === null || raw === "") return undefined;
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return bound === "start" ? `${trimmed}T00:00:00.000+07:00` : `${trimmed}T23:59:59.999+07:00`;
+    }
+    return trimmed;
+  }
+  return raw;
+};
+
+const optionalFilterDateSchema = (bound: "start" | "end") =>
+  z.preprocess(
+    (raw) => parseFilterDateBound(raw, bound),
+    z.coerce
+      .date({ message: "Ngày lọc deadline không hợp lệ." })
+      .refine((value) => !Number.isNaN(value.getTime()), {
+        message: "Ngày lọc deadline không hợp lệ.",
+      })
+      .optional()
+  );
+
 export const taskPrioritySchema = z.enum([
   TaskPriority.LOW,
   TaskPriority.MEDIUM,
@@ -148,19 +171,38 @@ export const taskStatusSchema = z.enum([
   TaskStatus.DONE,
 ]);
 
-export const taskListQuerySchema = paginationQuerySchema.extend({
-  pageSize: z.coerce.number().int().min(1).max(50).default(10),
-  search: z.string().trim().max(150).optional(),
-  status: taskStatusSchema.optional(),
-  priority: taskPrioritySchema.optional(),
-  assigneeId: uuidSchema.optional(),
-  unassignedOnly: optionalBooleanQuerySchema,
-  overdueOnly: optionalBooleanQuerySchema,
-  sortBy: z
-    .enum(["deadline", "priority", "createdAt", "updatedAt", "status", "title"])
-    .default("deadline"),
-  sortOrder: z.enum(["asc", "desc"]).default("asc"),
-});
+export const taskListQuerySchema = paginationQuerySchema
+  .extend({
+    pageSize: z.coerce.number().int().min(1).max(50).default(10),
+    search: z.string().trim().max(150).optional(),
+    status: taskStatusSchema.optional(),
+    priority: taskPrioritySchema.optional(),
+    assigneeId: uuidSchema.optional(),
+    unassignedOnly: optionalBooleanQuerySchema,
+    overdueOnly: optionalBooleanQuerySchema,
+    sprintId: uuidSchema.optional(),
+    backlogOnly: optionalBooleanQuerySchema,
+    deadlineFrom: optionalFilterDateSchema("start"),
+    deadlineTo: optionalFilterDateSchema("end"),
+    sortBy: z
+      .enum(["deadline", "priority", "createdAt", "updatedAt", "status", "title"])
+      .default("deadline"),
+    sortOrder: z.enum(["asc", "desc"]).default("asc"),
+  })
+  .refine((data) => !(data.sprintId && data.backlogOnly === true), {
+    path: ["sprintId"],
+    message: "Không thể kết hợp lọc sprintId và backlogOnly cùng lúc.",
+  })
+  .refine(
+    (data) => {
+      if (!data.deadlineFrom || !data.deadlineTo) return true;
+      return data.deadlineTo.getTime() >= data.deadlineFrom.getTime();
+    },
+    {
+      path: ["deadlineTo"],
+      message: "Ngày kết thúc deadline phải lớn hơn hoặc bằng ngày bắt đầu.",
+    }
+  );
 
 export const createTaskSchema = z
   .object({

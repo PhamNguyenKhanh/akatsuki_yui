@@ -32,6 +32,9 @@ const HISTORY_ACTION_LABELS: Record<TaskHistoryAction, string> = {
   [TaskHistoryAction.REVIEW_REJECTED]: "Từ chối Review (Rejected)",
   [TaskHistoryAction.DEPENDENCY_ADDED]: "Thêm phụ thuộc",
   [TaskHistoryAction.DEPENDENCY_REMOVED]: "Gỡ phụ thuộc",
+  [TaskHistoryAction.SPRINT_ASSIGNED]: "Đưa vào Sprint",
+  [TaskHistoryAction.SPRINT_REMOVED]: "Gỡ khỏi Sprint về Backlog",
+  [TaskHistoryAction.SPRINT_MOVED]: "Chuyển giữa các Sprint",
 };
 
 interface TaskHistoryTimelineProps {

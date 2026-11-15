@@ -44,6 +44,9 @@ function revalidateTaskPaths(projectId: string | undefined, taskId?: string, ext
 
   revalidatePath(`/projects/${projectId}`);
   revalidatePath(`/projects/${projectId}/tasks`);
+  revalidatePath(`/projects/${projectId}/backlog`);
+  revalidatePath(`/projects/${projectId}/kanban`);
+  revalidatePath(`/projects/${projectId}/sprints`, "layout");
   if (taskId) {
     revalidatePath(`/projects/${projectId}/tasks/${taskId}`);
     revalidatePath(`/projects/${projectId}/tasks/${taskId}/edit`);

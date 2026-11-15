@@ -55,6 +55,8 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
   const canManageMembers =
     hasPermission(actor, PERMISSIONS.PROJECT_MEMBER_MANAGE) && isAdminOrLeader;
   const canReadTasks = hasPermission(actor, PERMISSIONS.TASK_READ);
+  const canReadSprints = hasPermission(actor, PERMISSIONS.SPRINT_READ);
+  const canManageSprint = hasPermission(actor, PERMISSIONS.SPRINT_MANAGE) && isAdminOrLeader;
   const canCreateTask =
     hasPermission(actor, PERMISSIONS.TASK_CREATE) &&
     isAdminOrLeader &&
@@ -62,14 +64,23 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
 
   const { getProjectTaskStatsService } = await import("@/modules/tasks/task.service");
   const { ProjectTaskSummaryCard } = await import("@/components/tasks/project-task-summary-card");
+  const { listProjectSprintsService } = await import("@/modules/sprints/sprint.service");
+  const { listBacklogTasksService } = await import("@/modules/sprints/sprint-planning.service");
+  const { ProjectSprintSummaryCard } =
+    await import("@/components/sprints/project-sprint-summary-card");
 
-  const [members, activeUserCandidates, taskStats] = await Promise.all([
-    listProjectMembersService(actor, project.id, { includeHistory: true }),
-    canManageMembers && project.status !== ProjectStatus.ARCHIVED
-      ? projectRepository.findActiveUserCandidates()
-      : Promise.resolve([]),
-    canReadTasks ? getProjectTaskStatsService(actor, project.id) : Promise.resolve(null),
-  ]);
+  const [members, activeUserCandidates, taskStats, projectSprints, backlogPreview] =
+    await Promise.all([
+      listProjectMembersService(actor, project.id, { includeHistory: true }),
+      canManageMembers && project.status !== ProjectStatus.ARCHIVED
+        ? projectRepository.findActiveUserCandidates()
+        : Promise.resolve([]),
+      canReadTasks ? getProjectTaskStatsService(actor, project.id) : Promise.resolve(null),
+      canReadSprints ? listProjectSprintsService(actor, project.id) : Promise.resolve(null),
+      canReadSprints && canReadTasks
+        ? listBacklogTasksService(actor, project.id, { pageSize: 1 })
+        : Promise.resolve(null),
+    ]);
 
   return (
     <div className="space-y-6">
@@ -225,6 +236,16 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
           projectId={project.id}
           stats={taskStats}
           canCreateTask={canCreateTask}
+        />
+      )}
+
+      {projectSprints && (
+        <ProjectSprintSummaryCard
+          projectId={project.id}
+          sprints={projectSprints}
+          backlogTotalCount={backlogPreview?.totalItems ?? 0}
+          canManageSprint={canManageSprint}
+          isArchived={project.status === ProjectStatus.ARCHIVED}
         />
       )}
 

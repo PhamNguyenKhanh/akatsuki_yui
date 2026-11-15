@@ -32,6 +32,7 @@ model User {
   createdProjects      Project[]        @relation("ProjectCreator")
   projectMemberships   ProjectMember[]
   createdTasks         Task[]           @relation("TaskCreator")
+  createdSprints       Sprint[]         @relation("SprintCreator")
   taskAssignments      TaskAssignee[]   @relation("TaskAssigneeUser")
   assignedTasks        TaskAssignee[]   @relation("TaskAssigneeAssigner")
   createdDependencies  TaskDependency[] @relation("TaskDependencyCreator")
@@ -166,6 +167,7 @@ model Project {
   createdBy     User             @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
   members       ProjectMember[]
   tasks         Task[]
+  sprints       Sprint[]
   archivedAt    DateTime?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
@@ -190,6 +192,37 @@ model ProjectMember {
   @@index([projectId, leftAt])
   @@index([userId, leftAt])
   @@index([projectId, userId])
+}
+
+enum SprintStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model Sprint {
+  id          String       @id @default(uuid()) @db.Uuid
+  projectId   String       @db.Uuid
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdById String       @db.Uuid
+  createdBy   User         @relation("SprintCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  name        String       @db.VarChar(150)
+  goal        String?      @db.Text
+  startDate   DateTime     @db.Date
+  endDate     DateTime     @db.Date
+  status      SprintStatus @default(PLANNED)
+  activatedAt DateTime?
+  completedAt DateTime?
+  cancelledAt DateTime?
+  tasks       Task[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([projectId, id])
+  @@index([projectId, status])
+  @@index([projectId, startDate, endDate])
+  @@index([createdById])
 }
 
 enum TaskStatus {
@@ -223,12 +256,17 @@ enum TaskHistoryAction {
   REVIEW_REJECTED
   DEPENDENCY_ADDED
   DEPENDENCY_REMOVED
+  SPRINT_ASSIGNED
+  SPRINT_REMOVED
+  SPRINT_MOVED
 }
 
 model Task {
   id             String           @id @default(uuid()) @db.Uuid
   projectId      String           @db.Uuid
   project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sprintId       String?          @db.Uuid
+  sprint         Sprint?          @relation(fields: [sprintId], references: [id], onDelete: SetNull)
   createdById    String           @db.Uuid
   createdBy      User             @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
   title          String           @db.VarChar(200)
@@ -250,6 +288,8 @@ model Task {
   updatedAt      DateTime         @updatedAt
 
   @@index([projectId, status])
+  @@index([projectId, sprintId, status])
+  @@index([sprintId, status])
   @@index([projectId, priority])
   @@index([projectId, deadline])
   @@index([createdById])

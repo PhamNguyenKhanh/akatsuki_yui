@@ -121,7 +121,7 @@ export function AppShell({ user, children }: { user: AuthContext; children: Reac
         </div>
         {navContent}
         <div className="border-t border-border p-4 text-xs text-muted-foreground">
-          Sprint 3 · Task Management
+          Sprint 4 · Sprints, Backlog &amp; Kanban
         </div>
       </aside>
 

@@ -458,6 +458,10 @@ export async function archiveProjectService(
   const archived = await prisma.$transaction(async (tx) => {
     await assertProjectLeaderAccess(actor, validProjectId, tx);
 
+    if (typeof (tx as { $queryRaw?: unknown }).$queryRaw === "function") {
+      await tx.$queryRaw`SELECT "id" FROM "Project" WHERE "id" = ${validProjectId}::uuid FOR UPDATE`;
+    }
+
     const current = await projectRepository.findById(validProjectId, tx);
     if (!current) {
       throw notFoundError("Không tìm thấy Project yêu cầu.");
