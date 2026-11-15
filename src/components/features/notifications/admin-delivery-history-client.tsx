@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  HelpCircle,
   MailCheck,
   RefreshCw,
   Search,
@@ -86,6 +87,9 @@ export function AdminDeliveryHistoryClient({
       ) {
         return false;
       }
+      if (statusFilter === "UNKNOWN" && item.status !== NotificationDeliveryStatus.UNKNOWN) {
+        return false;
+      }
 
       if (typeFilter !== "ALL" && item.notification.type !== typeFilter) {
         return false;
@@ -105,12 +109,17 @@ export function AdminDeliveryHistoryClient({
     });
   }, [items, statusFilter, typeFilter, emailSearch]);
 
-  async function handleManualRetry(delivery: NotificationDeliveryDTO) {
+  async function handleManualRetry(
+    delivery: NotificationDeliveryDTO,
+    confirmUnknownResend = false
+  ) {
     setFeedbackError(null);
     setFeedbackSuccess(null);
     setRetryingId(delivery.id);
     try {
-      const res = await manualRetryNotificationDeliveryAction(delivery.id);
+      const res = await manualRetryNotificationDeliveryAction(delivery.id, {
+        confirmUnknownResend,
+      });
       if (!res.ok) {
         setFeedbackError(res.error.message);
         return;
@@ -118,7 +127,7 @@ export function AdminDeliveryHistoryClient({
       setItems((prev) => prev.map((d) => (d.id === res.data.id ? res.data : d)));
       setFeedbackSuccess(
         res.data.status === NotificationDeliveryStatus.SENT
-          ? `Đã gửi lại email tới ${res.data.recipientEmail} thành công.`
+          ? `Đã gửi lại email qua SMTP tới ${res.data.recipientEmail} thành công.`
           : `Đã thực hiện thử gửi lại tới ${res.data.recipientEmail} (trạng thái hiện tại: ${res.data.status}, lần thử ${res.data.retryCount}/${res.data.maxRetries}).`
       );
       router.refresh();
@@ -129,8 +138,41 @@ export function AdminDeliveryHistoryClient({
 
   return (
     <div className="space-y-6">
+      {initialSummary.quota && (initialSummary.quota.isNearLimit || initialSummary.pendingCount > 0 || initialSummary.unknownReviewCount > 0) && (
+        <Alert
+          variant={
+            initialSummary.quota.isQuotaExceeded || initialSummary.unknownReviewCount > 0
+              ? "destructive"
+              : "warning"
+          }
+        >
+          <AlertDescription className="space-y-1 text-xs sm:text-sm">
+            <div className="font-medium">
+              Hạn mức gửi SMTP 24h: {initialSummary.quota.usedLast24h} /{" "}
+              {initialSummary.quota.dailyLimit} lượt (còn{" "}
+              {initialSummary.quota.remainingLast24h} lượt) · Hàng đợi PENDING:{" "}
+              {initialSummary.pendingCount} · Cần kiểm tra (UNKNOWN):{" "}
+              {initialSummary.unknownReviewCount}
+            </div>
+            {initialSummary.quota.isQuotaExceeded && (
+              <p>
+                Hệ thống đã chạm ngưỡng gửi SMTP 24h. Các email mới được giữ ở trạng thái
+                PENDING để Cron hằng ngày tiếp tục xử lý khi hạn mức mở lại.
+              </p>
+            )}
+            {initialSummary.unknownReviewCount > 0 && (
+              <p>
+                Có {initialSummary.unknownReviewCount} bản ghi UNKNOWN (kết nối ngắt ở pha
+                DATA). Hệ thống KHÔNG tự động gửi lại để tránh gửi trùng — vui lòng kiểm tra trước
+                khi xác nhận gửi lại thủ công.
+              </p>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Summary Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-1.5">
@@ -174,6 +216,18 @@ export function AdminDeliveryHistoryClient({
             </CardTitle>
           </CardHeader>
         </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-1.5">
+              <HelpCircle className="h-4 w-4 text-purple-600" />
+              <span>Chờ kiểm tra (UNKNOWN)</span>
+            </CardDescription>
+            <CardTitle className="text-2xl font-bold">
+              {initialSummary.unknownReviewCount}
+            </CardTitle>
+          </CardHeader>
+        </Card>
       </div>
 
       {feedbackError && (
@@ -192,11 +246,11 @@ export function AdminDeliveryHistoryClient({
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <MailCheck className="h-5 w-5 text-slate-700" />
-            <span>Nhật ký Gửi Email qua Resend ({filteredItems.length})</span>
+            <span>Nhật ký Gửi Email qua SMTP ({filteredItems.length})</span>
           </CardTitle>
           <CardDescription>
-            Theo dõi trạng thái gửi email thông báo toàn hệ thống và thực hiện thử gửi lại (Manual
-            Retry) tối đa 3 lần (BR-NOTIF-008 / DEC-040).
+            Theo dõi trạng thái gửi email thông báo qua Nodemailer SMTP và thực hiện kiểm tra / thử
+            gửi lại thủ công tối đa 3 lần (DEC-040, DEC-070).
           </CardDescription>
         </CardHeader>
 
@@ -224,6 +278,7 @@ export function AdminDeliveryHistoryClient({
               <option value="FAILED">FAILED (Tất cả lỗi)</option>
               <option value="FAILED_RETRYABLE">FAILED (Có thể thử lại &lt; 3)</option>
               <option value="FAILED_TERMINAL">FAILED (Hết lượt thử = 3)</option>
+              <option value="UNKNOWN">UNKNOWN (Cần kiểm tra)</option>
             </select>
 
             <select
@@ -288,6 +343,13 @@ export function AdminDeliveryHistoryClient({
                           <Badge variant="secondary" className="text-xs">
                             PENDING
                           </Badge>
+                        ) : item.status === NotificationDeliveryStatus.UNKNOWN ? (
+                          <Badge
+                            variant="outline"
+                            className="border-purple-500 text-purple-700 text-xs"
+                          >
+                            UNKNOWN (Review)
+                          </Badge>
                         ) : item.isTerminalFailure ? (
                           <Badge variant="destructive" className="text-xs">
                             FAILED (Terminal)
@@ -335,11 +397,27 @@ export function AdminDeliveryHistoryClient({
                             type="button"
                             size="sm"
                             variant="outline"
-                            onClick={() => void handleManualRetry(item)}
+                            onClick={() => void handleManualRetry(item, false)}
                             disabled={retryingId === item.id}
                           >
                             <RefreshCw className="h-3.5 w-3.5" />
                             <span>{retryingId === item.id ? "Đang gửi..." : "Thử gửi lại"}</span>
+                          </Button>
+                        ) : canRetry &&
+                          item.requiresReview &&
+                          item.retryCount < item.maxRetries ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="border-purple-400 text-purple-700 hover:bg-purple-50"
+                            onClick={() => void handleManualRetry(item, true)}
+                            disabled={retryingId === item.id}
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                            <span>
+                              {retryingId === item.id ? "Đang gửi..." : "Xác nhận gửi lại"}
+                            </span>
                           </Button>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>

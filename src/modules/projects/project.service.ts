@@ -195,7 +195,7 @@ export async function createProjectService(
     return { created: found, notificationHandles: handles };
   });
 
-  schedulePostCommitEmailDispatch(notificationHandles);
+  await schedulePostCommitEmailDispatch(notificationHandles);
 
   if (!created) {
     throw notFoundError("Không tìm thấy Project sau khi khởi tạo.");

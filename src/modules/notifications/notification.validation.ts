@@ -24,7 +24,7 @@ export const markNotificationReadSchema = z.object({
 
 export const deliveryHistoryQuerySchema = z.object({
   status: z
-    .enum(["ALL", "PENDING", "SENT", "FAILED", "FAILED_RETRYABLE", "FAILED_TERMINAL"])
+    .enum(["ALL", "PENDING", "SENT", "FAILED", "FAILED_RETRYABLE", "FAILED_TERMINAL", "UNKNOWN"])
     .default("ALL"),
   type: notificationTypeSchema.optional(),
   recipientEmail: z

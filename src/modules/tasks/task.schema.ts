@@ -1,6 +1,6 @@
 import { TaskPriority, TaskStatus } from "@prisma/client";
 import { z } from "zod";
-import { paginationQuerySchema, uuidSchema } from "@/lib/validations/common";
+import { isSafeHttpUrl, paginationQuerySchema, uuidSchema } from "@/lib/validations/common";
 
 export const MAX_REFERENCE_LINKS = 20;
 export const MAX_TASK_ASSIGNEES = 50;
@@ -45,17 +45,9 @@ const httpUrlSchema = z
   .trim()
   .min(1, "Liên kết tham chiếu không được để trống.")
   .max(1000, "Liên kết tham chiếu không được vượt quá 1000 ký tự.")
-  .refine(
-    (value) => {
-      try {
-        const parsed = new URL(value);
-        return parsed.protocol === "http:" || parsed.protocol === "https:";
-      } catch {
-        return false;
-      }
-    },
-    { message: "Liên kết tham chiếu phải bắt đầu bằng http:// hoặc https://." }
-  );
+  .refine((value) => isSafeHttpUrl(value), {
+    message: "Liên kết tham chiếu phải bắt đầu bằng http:// hoặc https:// và không chứa thông tin đăng nhập.",
+  });
 
 export const referenceLinksSchema = z
   .array(httpUrlSchema)

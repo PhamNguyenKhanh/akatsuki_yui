@@ -74,13 +74,19 @@ vi.mock("@/modules/notifications/notification.service", () => ({
 }));
 
 vi.mock("@/modules/notifications/notification-delivery.service", () => ({
+  MAX_CRON_EMAIL_BATCH: 10,
   listAdminNotificationDeliveriesService: listAdminNotificationDeliveriesServiceMock,
   manualRetryNotificationDeliveryService: manualRetryNotificationDeliveryServiceMock,
   processDueEmailDeliveriesBatch: processDueEmailDeliveriesBatchMock,
+  cleanupOldSmtpQuotaAttemptsBatch: vi.fn().mockResolvedValue(0),
 }));
 
 vi.mock("@/modules/notifications/notification-deadline.service", () => ({
   runDeadlineReminderBatch: runDeadlineReminderBatchMock,
+}));
+
+vi.mock("@/lib/rate-limit", () => ({
+  cleanupExpiredRateLimitEventsBatch: vi.fn().mockResolvedValue(0),
 }));
 
 import { GET as globalDocumentsGet } from "@/app/api/v1/documents/route";
@@ -401,6 +407,7 @@ describe("Sprint 5 API Route Handlers Contract Tests", () => {
           sentCount: 0,
           retryableFailedCount: 1,
           terminalFailedCount: 0,
+          unknownReviewCount: 0,
         },
         page: 1,
         pageSize: 20,

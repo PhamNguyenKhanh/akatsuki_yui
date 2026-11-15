@@ -7,7 +7,9 @@ export async function POST(request: Request) {
   try {
     const actor = await requireActiveUser();
     const body = await parseJsonBody(request);
-    await changeMyPasswordService(actor, body as Parameters<typeof changeMyPasswordService>[1]);
+    await changeMyPasswordService(actor, body as Parameters<typeof changeMyPasswordService>[1], {
+      headers: request.headers,
+    });
     return apiSuccess({ changed: true });
   } catch (error) {
     return apiError(error, { route: "POST /api/v1/profile/change-password" });

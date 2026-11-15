@@ -159,7 +159,7 @@ export async function submitTaskForReviewService(
     };
   });
 
-  schedulePostCommitEmailDispatch(result.notificationHandles);
+  await schedulePostCommitEmailDispatch(result.notificationHandles);
 
   await emitTaskEventAfterCommit({
     type: "TASK_SUBMITTED_FOR_REVIEW",
@@ -366,7 +366,7 @@ async function processTaskReviewDecision(
     };
   });
 
-  schedulePostCommitEmailDispatch(result.notificationHandles);
+  await schedulePostCommitEmailDispatch(result.notificationHandles);
 
   await emitTaskEventAfterCommit({
     type: isApprove ? "TASK_REVIEW_APPROVED" : "TASK_REVIEW_REJECTED",

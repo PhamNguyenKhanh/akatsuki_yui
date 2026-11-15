@@ -21,8 +21,8 @@ export default async function AdminNotificationDeliveriesPage() {
           Giám sát Gửi Email Thông báo (Delivery Monitoring)
         </h1>
         <p className="text-sm text-muted-foreground">
-          Quản trị lịch sử gửi email thông báo qua Resend API và chủ động thử gửi lại các bản ghi
-          lỗi chưa vượt quá 3 lần thử.
+          Quản trị lịch sử gửi email thông báo qua máy chủ SMTP (Nodemailer), theo dõi hạn mức 24h
+          và chủ động kiểm tra / gửi lại các bản ghi lỗi chưa vượt quá 3 lần thử.
         </p>
       </div>
 

@@ -283,7 +283,7 @@ export async function createNotificationsInTransaction(
           channel: NotificationChannel.EMAIL,
           recipientEmail,
           status: NotificationDeliveryStatus.PENDING,
-          provider: "RESEND",
+          provider: "SMTP",
           retryCount: 0,
         },
         select: { id: true },

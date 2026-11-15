@@ -15,8 +15,15 @@ const templateDescriptionSchema = z
   .optional()
   .transform((value) => (value && value.length > 0 ? value : null));
 
-const templateConfigurationSchema = z
+const MAX_TEMPLATE_CONFIG_BYTES = 16 * 1024;
+
+const templateConfigurationRecordSchema = z
   .record(z.string(), z.unknown())
+  .refine((value) => Buffer.byteLength(JSON.stringify(value), "utf8") <= MAX_TEMPLATE_CONFIG_BYTES, {
+    message: "Cấu hình JSON của Template không được vượt quá 16 KB.",
+  });
+
+const templateConfigurationSchema = templateConfigurationRecordSchema
   .nullable()
   .optional()
   .transform((value) => value ?? null);
@@ -41,7 +48,7 @@ export const updateProjectTemplateSchema = z
   .object({
     name: templateNameSchema.optional(),
     description: templateDescriptionSchema,
-    configuration: z.record(z.string(), z.unknown()).nullable().optional(),
+    configuration: templateConfigurationRecordSchema.nullable().optional(),
     isActive: z.boolean().optional(),
   })
   .refine(

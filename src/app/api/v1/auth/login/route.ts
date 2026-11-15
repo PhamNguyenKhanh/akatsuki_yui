@@ -6,7 +6,8 @@ export async function POST(request: Request) {
   try {
     const body = await parseJsonBody(request);
     const result = await performCredentialsLogin(
-      body as Parameters<typeof performCredentialsLogin>[0]
+      body as Parameters<typeof performCredentialsLogin>[0],
+      { headers: request.headers }
     );
     return apiSuccess(result);
   } catch (error) {

@@ -174,7 +174,7 @@ describe("Sprint 5 — Notifications, Retry Backoff, Deadline Reminder & Cron Un
     });
   });
 
-  describe("Email Retry Backoff & Resend Idempotency Key (DEC-040, DEC-045)", () => {
+  describe("Email Retry Backoff & SMTP Error Classification (DEC-040, DEC-045, DEC-070)", () => {
     it("computes +1m, +5m, +15m backoff for retryCount 0..2 and null at retryCount = 3", () => {
       const base = new Date("2026-11-15T10:00:00.000Z");
 
@@ -191,13 +191,13 @@ describe("Sprint 5 — Notifications, Retry Backoff, Deadline Reminder & Cron Un
       expect(afterRetry3).toBeNull();
     });
 
-    it("builds stable Resend idempotency key without appending attempt number and classifies errors", () => {
+    it("builds stable correlation id without appending attempt number and classifies SMTP errors", () => {
       expect(buildDeliveryIdempotencyKey(DELIVERY_ID)).toBe(`notification-delivery:${DELIVERY_ID}`);
 
-      expect(classifyEmailProviderError("validation_error", 422)).toBe(true);
-      expect(classifyEmailProviderError("invalid_to_address", 400)).toBe(true);
-      expect(classifyEmailProviderError("rate_limit_exceeded", 429)).toBe(false);
-      expect(classifyEmailProviderError("internal_server_error", 500)).toBe(false);
+      expect(classifyEmailProviderError("SMTP_550", 550)).toBe(true);
+      expect(classifyEmailProviderError("EAUTH", 535)).toBe(true);
+      expect(classifyEmailProviderError("SMTP_421", 421)).toBe(false);
+      expect(classifyEmailProviderError("ECONNREFUSED", 450)).toBe(false);
     });
   });
 

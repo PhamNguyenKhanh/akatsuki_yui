@@ -1,5 +1,6 @@
 import "server-only";
 import { TaskHistoryAction, TaskStatus } from "@prisma/client";
+import { acquireAdvisoryXactLock, acquireProjectShareLock } from "@/lib/db-locks";
 import { badRequestError, conflictError, notFoundError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { isPrismaUniqueViolation } from "@/lib/prisma-errors";
@@ -108,13 +109,20 @@ export async function addTaskDependencyService(
 
   try {
     return await prisma.$transaction(async (tx) => {
+      const preTask = await tx.task.findUnique({
+        where: { id: validTaskId },
+        select: { projectId: true },
+      });
+      if (preTask) {
+        await acquireProjectShareLock(tx, preTask.projectId);
+      }
       const { task, project } = await assertTaskLeaderAccess(actor, validTaskId, tx);
       assertProjectNotArchivedForTaskMutation(project.status);
 
       // Serialize dependency graph mutations inside the Project so concurrent opposite
       // additions (e.g. A->B and B->A) cannot bypass cycle detection.
       const lockKey = `task_dep:${project.id}`;
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
+      await acquireAdvisoryXactLock(tx, lockKey);
 
       const [freshTask, dependsOnTask] = await Promise.all([
         tx.task.findUnique({

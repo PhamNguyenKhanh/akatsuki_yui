@@ -2,11 +2,8 @@ import { NotificationDeliveryStatus, NotificationType } from "@prisma/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-vi.mock("next/server", () => ({
-  after: vi.fn(),
-}));
 
-const { prismaMock, sendEmailViaResendMock } = vi.hoisted(() => ({
+const { prismaMock, sendEmailViaSmtpMock } = vi.hoisted(() => ({
   prismaMock: {
     notificationDelivery: {
       updateMany: vi.fn(),
@@ -16,7 +13,7 @@ const { prismaMock, sendEmailViaResendMock } = vi.hoisted(() => ({
       create: vi.fn(),
     },
   },
-  sendEmailViaResendMock: vi.fn(),
+  sendEmailViaSmtpMock: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -29,7 +26,7 @@ vi.mock("@/server/integrations/email", async () => {
   );
   return {
     ...actual,
-    sendEmailViaResend: sendEmailViaResendMock,
+    sendEmailViaSmtp: sendEmailViaSmtpMock,
   };
 });
 
@@ -73,16 +70,29 @@ function mockFinalRecord(
     channel: "EMAIL" as const,
     recipientEmail: "member@akatsuki.local",
     status,
-    provider: "RESEND",
-    providerMessageId: status === NotificationDeliveryStatus.SENT ? "re_msg_123" : null,
+    provider: "SMTP",
+    providerMessageId:
+      status === NotificationDeliveryStatus.SENT
+        ? `<notification-delivery-${DELIVERY_ID}@akatsuki.local>`
+        : null,
     retryCount,
     lastAttemptAt: now,
     nextRetryAt,
     lockedAt: null,
     sentAt: status === NotificationDeliveryStatus.SENT ? now : null,
-    failedAt: status === NotificationDeliveryStatus.FAILED ? now : null,
-    errorCode: status === NotificationDeliveryStatus.FAILED ? "rate_limit_exceeded" : null,
-    errorMessage: status === NotificationDeliveryStatus.FAILED ? "Too many requests" : null,
+    failedAt: status === NotificationDeliveryStatus.FAILED || status === NotificationDeliveryStatus.UNKNOWN ? now : null,
+    errorCode:
+      status === NotificationDeliveryStatus.FAILED
+        ? "SMTP_421"
+        : status === NotificationDeliveryStatus.UNKNOWN
+          ? "SMTP_DATA_TIMEOUT"
+          : null,
+    errorMessage:
+      status === NotificationDeliveryStatus.FAILED
+        ? "421 Try again later"
+        : status === NotificationDeliveryStatus.UNKNOWN
+          ? "[REQUIRES_REVIEW] Socket timed out in DATA phase"
+          : null,
     createdAt: now,
     updatedAt: now,
     notification: {
@@ -102,16 +112,18 @@ function mockFinalRecord(
   };
 }
 
-describe("Sprint 5 Email Worker — executeClaimedDelivery State Machine", () => {
+describe("Sprint 5/7 SMTP Email Worker — executeClaimedDelivery State Machine", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     prismaMock.notificationDelivery.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.auditLog.create.mockResolvedValue({});
   });
 
-  it("sends with stable idempotencyKey and marks SENT on Resend success", async () => {
-    sendEmailViaResendMock.mockResolvedValueOnce({
+  it("sends with deliveryId correlation and marks SENT on SMTP success", async () => {
+    sendEmailViaSmtpMock.mockResolvedValueOnce({
       status: "SENT",
-      providerMessageId: "re_msg_123",
+      provider: "SMTP",
+      providerMessageId: `<notification-delivery-${DELIVERY_ID}@akatsuki.local>`,
     });
     prismaMock.notificationDelivery.findUnique.mockResolvedValueOnce(
       mockFinalRecord(NotificationDeliveryStatus.SENT, 0, null)
@@ -119,18 +131,18 @@ describe("Sprint 5 Email Worker — executeClaimedDelivery State Machine", () =>
 
     const dto = await executeClaimedDelivery(makeLease(0));
 
-    expect(sendEmailViaResendMock).toHaveBeenCalledTimes(1);
-    expect(sendEmailViaResendMock.mock.calls[0][0]).toMatchObject({
+    expect(sendEmailViaSmtpMock).toHaveBeenCalledTimes(1);
+    expect(sendEmailViaSmtpMock.mock.calls[0][0]).toMatchObject({
       to: "member@akatsuki.local",
-      idempotencyKey: `notification-delivery:${DELIVERY_ID}`,
+      deliveryId: DELIVERY_ID,
     });
 
     const updateArgs = prismaMock.notificationDelivery.updateMany.mock.calls[0][0];
     expect(updateArgs.where).toEqual({ id: DELIVERY_ID, lockToken: LOCK_TOKEN });
     expect(updateArgs.data).toMatchObject({
       status: NotificationDeliveryStatus.SENT,
-      provider: "RESEND",
-      providerMessageId: "re_msg_123",
+      provider: "SMTP",
+      providerMessageId: `<notification-delivery-${DELIVERY_ID}@akatsuki.local>`,
       nextRetryAt: null,
       lockedAt: null,
       lockToken: null,
@@ -138,7 +150,7 @@ describe("Sprint 5 Email Worker — executeClaimedDelivery State Machine", () =>
     expect(dto?.status).toBe(NotificationDeliveryStatus.SENT);
   });
 
-  it("schedules +1m, +5m, +15m backoff on transient failure and clears nextRetryAt at terminal retryCount = 3", async () => {
+  it("schedules +1m, +5m, +15m backoff on transient SMTP failure and clears nextRetryAt at terminal retryCount = 3", async () => {
     for (const [retryCount, expectedDelayMs] of [
       [0, 1 * 60 * 1000],
       [1, 5 * 60 * 1000],
@@ -147,10 +159,12 @@ describe("Sprint 5 Email Worker — executeClaimedDelivery State Machine", () =>
     ] as const) {
       vi.clearAllMocks();
       prismaMock.notificationDelivery.updateMany.mockResolvedValue({ count: 1 });
-      sendEmailViaResendMock.mockResolvedValueOnce({
+      prismaMock.auditLog.create.mockResolvedValue({});
+      sendEmailViaSmtpMock.mockResolvedValueOnce({
         status: "FAILED",
-        errorCode: "rate_limit_exceeded",
-        errorMessage: "Too many requests",
+        provider: "SMTP",
+        errorCode: "SMTP_421",
+        errorMessage: "421 Try again later",
         isPermanentFailure: false,
       });
       prismaMock.notificationDelivery.findUnique.mockResolvedValueOnce(
@@ -171,11 +185,12 @@ describe("Sprint 5 Email Worker — executeClaimedDelivery State Machine", () =>
     }
   });
 
-  it("marks immediate terminal FAILED (nextRetryAt = null) on permanent failure even at retryCount = 0", async () => {
-    sendEmailViaResendMock.mockResolvedValueOnce({
+  it("marks immediate terminal FAILED (nextRetryAt = null) on permanent SMTP failure even at retryCount = 0", async () => {
+    sendEmailViaSmtpMock.mockResolvedValueOnce({
       status: "FAILED",
-      errorCode: "validation_error",
-      errorMessage: "Invalid recipient email",
+      provider: "SMTP",
+      errorCode: "SMTP_550",
+      errorMessage: "550 5.1.1 User unknown",
       isPermanentFailure: true,
     });
     prismaMock.notificationDelivery.findUnique.mockResolvedValueOnce(
@@ -188,8 +203,40 @@ describe("Sprint 5 Email Worker — executeClaimedDelivery State Machine", () =>
     expect(updateData).toMatchObject({
       status: NotificationDeliveryStatus.FAILED,
       nextRetryAt: null,
-      errorCode: "validation_error",
+      errorCode: "SMTP_550",
     });
     expect(dto?.status).toBe(NotificationDeliveryStatus.FAILED);
+  });
+
+  it("marks UNKNOWN (no auto-retry, sets requiresReview) and records AuditLog when post-DATA SMTP outcome is uncertain", async () => {
+    sendEmailViaSmtpMock.mockResolvedValueOnce({
+      status: "UNKNOWN",
+      provider: "SMTP",
+      errorCode: "SMTP_DATA_TIMEOUT",
+      errorMessage: "[REQUIRES_REVIEW] Socket timed out in DATA phase",
+    });
+    prismaMock.notificationDelivery.findUnique.mockResolvedValueOnce(
+      mockFinalRecord(NotificationDeliveryStatus.UNKNOWN, 0, null)
+    );
+
+    const dto = await executeClaimedDelivery(makeLease(0));
+
+    const updateData = prismaMock.notificationDelivery.updateMany.mock.calls[0][0].data;
+    expect(updateData).toMatchObject({
+      status: NotificationDeliveryStatus.UNKNOWN,
+      nextRetryAt: null,
+      errorCode: "SMTP_DATA_TIMEOUT",
+    });
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "EMAIL_DELIVERY_OUTCOME_UNKNOWN",
+          entityId: DELIVERY_ID,
+        }),
+      })
+    );
+    expect(dto?.status).toBe(NotificationDeliveryStatus.UNKNOWN);
+    expect(dto?.requiresReview).toBe(true);
+    expect(dto?.canManualRetry).toBe(false);
   });
 });

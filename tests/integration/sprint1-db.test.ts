@@ -52,7 +52,7 @@ describe("Sprint 1 PostgreSQL Integration Tests", () => {
     await prisma.$disconnect();
   });
 
-  it("verifies seeded roles, 27 permissions, and seeded active Admin account", async () => {
+  it("verifies seeded roles, 28 permissions, and seeded active Admin account", async () => {
     const [roleCount, permCount, seedAdmin] = await Promise.all([
       prisma.role.count(),
       prisma.permission.count(),
@@ -69,7 +69,7 @@ describe("Sprint 1 PostgreSQL Integration Tests", () => {
     ]);
 
     expect(roleCount).toBe(4);
-    expect(permCount).toBe(27);
+    expect(permCount).toBe(28);
     expect(seedAdmin).not.toBeNull();
     expect(seedAdmin?.status).toBe(UserStatus.ACTIVE);
     expect(seedAdmin?.userRoles.some((ur) => ur.role.name === ROLES.ADMIN)).toBe(true);

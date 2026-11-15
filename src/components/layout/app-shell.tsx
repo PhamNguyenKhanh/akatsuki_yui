@@ -75,7 +75,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Project Templates",
     href: "/admin/templates",
     icon: Layers,
-    requiredAnyPermissions: [PERMISSIONS.PROJECT_CREATE, PERMISSIONS.ROLE_MANAGE],
+    requiredAnyPermissions: [PERMISSIONS.PROJECT_TEMPLATE_MANAGE],
   },
   {
     label: "Quản lý tài khoản",

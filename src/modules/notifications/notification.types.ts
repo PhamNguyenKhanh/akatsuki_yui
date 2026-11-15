@@ -57,6 +57,7 @@ export interface NotificationDeliveryDTO {
   retryCount: number;
   maxRetries: number;
   isTerminalFailure: boolean;
+  requiresReview: boolean;
   canManualRetry: boolean;
   lastAttemptAt: string | null;
   nextRetryAt: string | null;
@@ -81,11 +82,21 @@ export interface NotificationDeliveryDTO {
   };
 }
 
+export interface SmtpQuotaSummaryDTO {
+  usedLast24h: number;
+  dailyLimit: number;
+  remainingLast24h: number;
+  isNearLimit: boolean;
+  isQuotaExceeded: boolean;
+}
+
 export interface NotificationDeliverySummaryStatsDTO {
   pendingCount: number;
   sentCount: number;
   retryableFailedCount: number;
   terminalFailedCount: number;
+  unknownReviewCount: number;
+  quota?: SmtpQuotaSummaryDTO;
 }
 
 export interface NotificationDeliveryListResponseDTO {
