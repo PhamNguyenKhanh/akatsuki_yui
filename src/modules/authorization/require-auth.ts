@@ -41,10 +41,14 @@ export async function getOptionalAuthContext(): Promise<AuthContext | null> {
   }
   try {
     return await loadTrustedAuthContext(session.user.id, {
-      expectedTokenVersion: typeof session.user.tokenVersion === "number" ? session.user.tokenVersion : -1,
+      expectedTokenVersion:
+        typeof session.user.tokenVersion === "number" ? session.user.tokenVersion : -1,
     });
-  } catch {
-    return null;
+  } catch (error) {
+    if (isAppError(error)) {
+      return null;
+    }
+    throw error;
   }
 }
 
