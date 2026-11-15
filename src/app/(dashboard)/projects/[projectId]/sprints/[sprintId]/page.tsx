@@ -8,7 +8,7 @@ import { hasPermission } from "@/modules/authorization/policy.service";
 import { requirePermissionOrRedirect } from "@/modules/authorization/require-auth";
 import { isWorkspaceAdmin } from "@/modules/projects/project.access";
 import { getSprintProgressAndBurndownService } from "@/modules/sprints/sprint-analytics.service";
-import { listBacklogTasksService } from "@/modules/sprints/sprint-planning.service";
+import { listSprintBacklogCandidatesService } from "@/modules/sprints/sprint-planning.service";
 import type { SprintDetailDTO, SprintTargetOptionDTO } from "@/modules/sprints/sprint.repository";
 import { normalizePageSearchParams } from "@/modules/sprints/sprint-route-helpers";
 import {
@@ -64,7 +64,7 @@ export default async function SprintDetailPage({ params, searchParams }: SprintD
     canReadTasks &&
     isPlanningEligible &&
     sprint.project.status !== ProjectStatus.ARCHIVED
-      ? listBacklogTasksService(actor, sprint.projectId, { pageSize: 100 })
+      ? listSprintBacklogCandidatesService(actor, sprint.projectId)
       : Promise.resolve(null),
   ]);
 

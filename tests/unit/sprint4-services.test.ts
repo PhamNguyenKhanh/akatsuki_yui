@@ -108,6 +108,7 @@ import { completeSprintService } from "@/modules/sprints/sprint-completion.servi
 import {
   assignTasksToSprintService,
   listBacklogTasksService,
+  listSprintBacklogCandidatesService,
   moveSprintTaskService,
 } from "@/modules/sprints/sprint-planning.service";
 import { computeSprintTaskStats } from "@/modules/sprints/sprint.repository";
@@ -698,6 +699,76 @@ describe("Sprint 4 Business Rules & Unit Tests", () => {
       const instructorBoard = await getKanbanBoardService(instructorActor, PROJECT_ID, {});
       expect(instructorBoard.columns.TODO[0].permissions.canStartProgress).toBe(false);
       expect(instructorBoard.columns.REVIEW[0].permissions.canApproveOrReject).toBe(false);
+    });
+  });
+
+  describe("5. Sprint Backlog Candidates & PageSize Limit Guard", () => {
+    it("rejects listBacklogTasksService pageSize > 50 to preserve API pagination limits", async () => {
+      await expect(
+        listBacklogTasksService(leaderActor, PROJECT_ID, { pageSize: 100 })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        code: "VALIDATION_ERROR",
+      });
+    });
+
+    it("loads single-page Sprint backlog candidates with pageSize <= 50", async () => {
+      prismaMock.project.findUnique.mockResolvedValue(makeProjectRecord(ProjectStatus.ACTIVE));
+      const candidateItem = { id: TASK_1_ID } as never;
+      taskRepoMock.findManyByProjectPaginated.mockResolvedValueOnce({
+        items: [candidateItem],
+        page: 1,
+        pageSize: 50,
+        totalItems: 1,
+        totalPages: 1,
+      });
+
+      const result = await listSprintBacklogCandidatesService(leaderActor, PROJECT_ID);
+      expect(result.items).toEqual([candidateItem]);
+      expect(taskRepoMock.findManyByProjectPaginated).toHaveBeenCalledTimes(1);
+      expect(taskRepoMock.findManyByProjectPaginated).toHaveBeenCalledWith(
+        PROJECT_ID,
+        expect.objectContaining({
+          backlogOnly: true,
+          page: 1,
+          pageSize: 50,
+        })
+      );
+    });
+
+    it("merges up to two 50-item pages when backlog candidates exceed 50 items", async () => {
+      prismaMock.project.findUnique.mockResolvedValue(makeProjectRecord(ProjectStatus.ACTIVE));
+      const page1Item = { id: TASK_1_ID } as never;
+      const page2Item = { id: TASK_2_ID } as never;
+
+      taskRepoMock.findManyByProjectPaginated
+        .mockResolvedValueOnce({
+          items: [page1Item],
+          page: 1,
+          pageSize: 50,
+          totalItems: 75,
+          totalPages: 2,
+        })
+        .mockResolvedValueOnce({
+          items: [page2Item],
+          page: 2,
+          pageSize: 50,
+          totalItems: 75,
+          totalPages: 2,
+        });
+
+      const result = await listSprintBacklogCandidatesService(leaderActor, PROJECT_ID);
+      expect(result.items).toEqual([page1Item, page2Item]);
+      expect(taskRepoMock.findManyByProjectPaginated).toHaveBeenCalledTimes(2);
+      expect(taskRepoMock.findManyByProjectPaginated).toHaveBeenNthCalledWith(
+        2,
+        PROJECT_ID,
+        expect.objectContaining({
+          backlogOnly: true,
+          page: 2,
+          pageSize: 50,
+        })
+      );
     });
   });
 

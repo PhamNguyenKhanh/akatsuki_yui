@@ -58,6 +58,40 @@ export async function listBacklogTasksService(
   return taskRepository.findManyByProjectPaginated(validProjectId, query);
 }
 
+/**
+ * Loads up to 100 backlog candidates across 50-item pages so Sprint planning UI
+ * stays within the `taskListQuerySchema` `pageSize <= 50` API limit.
+ */
+export async function listSprintBacklogCandidatesService(
+  actor: AuthContext,
+  projectId: string
+): Promise<{
+  items: TaskSummaryDTO[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}> {
+  const firstPage = await listBacklogTasksService(actor, projectId, {
+    page: 1,
+    pageSize: 50,
+  });
+
+  if (firstPage.totalPages <= 1) {
+    return firstPage;
+  }
+
+  const secondPage = await listBacklogTasksService(actor, projectId, {
+    page: 2,
+    pageSize: 50,
+  });
+
+  return {
+    ...firstPage,
+    items: [...firstPage.items, ...secondPage.items],
+  };
+}
+
 export async function assignTasksToSprintService(
   actor: AuthContext,
   sprintId: string,
