@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { NotificationBell } from "@/components/features/notifications/notification-bell";
 import { RoleBadge } from "@/components/shared/status-badge";
+import { ThemeSwitcher } from "@/components/theme/theme-switcher";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { logoutAction } from "@/modules/auth/auth.actions";
@@ -143,7 +144,7 @@ export function AppShell({
               "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
               isActive
                 ? "bg-primary text-primary-foreground"
-                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             )}
           >
             <Icon className="h-4 w-4 shrink-0" />
@@ -159,7 +160,7 @@ export function AppShell({
       {/* Desktop Sidebar */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-card lg:flex">
         <div className="flex h-16 items-center border-b border-border px-5">
-          <Link href="/dashboard" className="text-lg font-bold tracking-tight text-slate-900">
+          <Link href="/dashboard" className="text-lg font-bold tracking-tight text-foreground">
             Akatsuki Yui
           </Link>
         </div>
@@ -179,7 +180,7 @@ export function AppShell({
           />
           <aside className="relative z-10 flex w-64 flex-col bg-card shadow-lg">
             <div className="flex h-16 items-center justify-between border-b border-border px-5">
-              <span className="text-lg font-bold text-slate-900">Akatsuki Yui</span>
+              <span className="text-lg font-bold text-foreground">Akatsuki Yui</span>
               <Button
                 variant="ghost"
                 size="icon"
@@ -207,17 +208,18 @@ export function AppShell({
             >
               <Menu className="h-5 w-5" />
             </Button>
-            <span className="text-sm font-medium text-slate-500">Internal Workspace</span>
+            <span className="text-sm font-medium text-muted-foreground">Internal Workspace</span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <ThemeSwitcher />
             {user.permissions.includes(PERMISSIONS.NOTIFICATION_READ) && (
               <NotificationBell initialUnreadCount={initialUnreadCount} />
             )}
             <div className="hidden items-center gap-2 sm:flex">
               <Link
                 href="/profile"
-                className="text-right text-sm font-medium text-slate-900 hover:underline"
+                className="text-right text-sm font-medium text-foreground hover:underline"
               >
                 {user.fullName}
               </Link>
