@@ -14,6 +14,7 @@ import { taskRepository, type TaskAssigneeDTO } from "@/modules/tasks/task.repos
 import {
   assertProjectNotArchivedForTaskMutation,
   assertTaskLeaderAccess,
+  assertTaskNotDoneForMutation,
   assertTaskReadAccess,
   parseTaskId,
   parseTaskScopedUserId,
@@ -102,8 +103,11 @@ export async function syncTaskAssigneesService(
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const { task, project } = await assertTaskLeaderAccess(actor, validTaskId, tx);
+      const { task, project } = await assertTaskLeaderAccess(actor, validTaskId, tx, {
+        lockForMutation: true,
+      });
       assertProjectNotArchivedForTaskMutation(project.status);
+      assertTaskNotDoneForMutation(task.status);
 
       await validateEligibleTaskAssignees(
         tx,
@@ -285,8 +289,11 @@ export async function addTaskAssigneeService(
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const { task, project } = await assertTaskLeaderAccess(actor, validTaskId, tx);
+      const { task, project } = await assertTaskLeaderAccess(actor, validTaskId, tx, {
+        lockForMutation: true,
+      });
       assertProjectNotArchivedForTaskMutation(project.status);
+      assertTaskNotDoneForMutation(task.status);
 
       await validateEligibleTaskAssignees(
         tx,
@@ -399,8 +406,11 @@ export async function removeTaskAssigneeService(
   const validUserId = parseTaskScopedUserId(targetUserId, "userId");
 
   return prisma.$transaction(async (tx) => {
-    const { task, project } = await assertTaskLeaderAccess(actor, validTaskId, tx);
+    const { task, project } = await assertTaskLeaderAccess(actor, validTaskId, tx, {
+      lockForMutation: true,
+    });
     assertProjectNotArchivedForTaskMutation(project.status);
+    assertTaskNotDoneForMutation(task.status);
 
     const activeAssignment = await tx.taskAssignee.findFirst({
       where: {

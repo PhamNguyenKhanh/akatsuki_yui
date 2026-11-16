@@ -9,8 +9,15 @@ const SENSITIVE_KEYS = new Set([
   "passwordHash",
   "secret",
   "token",
+  "accessToken",
+  "idToken",
+  "csrfToken",
   "apiKey",
   "authorization",
+  "cookie",
+  "set-cookie",
+  "x-nonce",
+  "x-cron-secret",
   "smtpPass",
   "oauthClientSecret",
   "oauthRefreshToken",
@@ -35,7 +42,10 @@ function maskEmailAddress(email: string): string {
 }
 
 function scrubConnectionUrls(text: string): string {
-  return text.replace(/postgres(?:ql)?:\/\/[^\s'"]+/gi, "[REDACTED_DB_URL]");
+  return text
+    .replace(/postgres(?:ql)?:\/\/[^\s'"]+/gi, "[REDACTED_DB_URL]")
+    .replace(/\bBearer\s+[A-Za-z0-9\-._~+/]+=*/gi, "Bearer [REDACTED]")
+    .replace(/(password|pass|token|secret|authorization)=[^\s&;]+/gi, "$1=[REDACTED]");
 }
 
 function redactValue(value: unknown, parentKey?: string): unknown {
@@ -57,6 +67,10 @@ function redactValue(value: unknown, parentKey?: string): unknown {
         lower.includes("password") ||
         lower.includes("secret") ||
         lower.includes("refreshtoken") ||
+        lower.includes("authorization") ||
+        lower.includes("cookie") ||
+        lower.includes("apikey") ||
+        (lower.includes("token") && lower !== "tokenversion" && !lower.includes("token_version")) ||
         lower.includes("database_url")
       ) {
         out[k] = "[REDACTED]";

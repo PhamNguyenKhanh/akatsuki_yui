@@ -1,5 +1,6 @@
 import "server-only";
 import { ProjectMemberRole, ProjectStatus } from "@prisma/client";
+import { acquireProjectUpdateLock } from "@/lib/db-locks";
 import { badRequestError, conflictError, notFoundError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
@@ -78,10 +79,22 @@ export async function addProjectMemberService(
   try {
     const created = await prisma.$transaction(async (tx) => {
       const project = await assertProjectLeaderAccess(actor, validProjectId, tx);
+      await acquireProjectUpdateLock(tx, validProjectId);
       if (project.status === ProjectStatus.ARCHIVED) {
         throw conflictError(
           "PROJECT_ARCHIVED",
           "Không thể thêm thành viên vào Project đang ở trạng thái ARCHIVED."
+        );
+      }
+
+      if (
+        input.projectRole === ProjectMemberRole.INSTRUCTOR &&
+        project.instructorId &&
+        project.instructorId !== input.userId
+      ) {
+        throw conflictError(
+          "CONFLICT",
+          "Project hiện đã có Instructor. Vui lòng cập nhật Instructor trong phần chỉnh sửa Project."
         );
       }
 
@@ -203,6 +216,7 @@ export async function changeProjectLeaderService(
 
   const notificationHandles = await prisma.$transaction(async (tx) => {
     const project = await assertProjectLeaderAccess(actor, validProjectId, tx);
+    await acquireProjectUpdateLock(tx, validProjectId);
     if (project.status === ProjectStatus.ARCHIVED) {
       throw conflictError(
         "PROJECT_ARCHIVED",
@@ -253,7 +267,10 @@ export async function changeProjectLeaderService(
 
     await tx.project.update({
       where: { id: project.id },
-      data: { leaderId: nextLeaderId },
+      data: {
+        leaderId: nextLeaderId,
+        ...(project.instructorId === nextLeaderId ? { instructorId: null } : {}),
+      },
     });
 
     await tx.auditLog.create({
@@ -310,6 +327,7 @@ export async function removeProjectMemberService(
 
   const removed = await prisma.$transaction(async (tx) => {
     const project = await assertProjectLeaderAccess(actor, validProjectId, tx);
+    await acquireProjectUpdateLock(tx, validProjectId);
     if (project.status === ProjectStatus.ARCHIVED) {
       throw conflictError(
         "PROJECT_ARCHIVED",

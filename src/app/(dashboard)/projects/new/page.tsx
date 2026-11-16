@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { PERMISSIONS, ROLES } from "@/modules/authorization/constants";
 import { requirePermissionOrRedirect } from "@/modules/authorization/require-auth";
 import { projectTemplateRepository } from "@/modules/project-templates/template.repository";
-import { projectRepository } from "@/modules/projects/project.repository";
+import { listProjectUserCandidatesService } from "@/modules/projects/project.service";
 
 export const metadata: Metadata = {
   title: "Tạo Project mới",
@@ -14,9 +14,13 @@ export const metadata: Metadata = {
 
 export default async function NewProjectPage() {
   const actor = await requirePermissionOrRedirect(PERMISSIONS.PROJECT_CREATE);
-  const [templates, userOptions] = await Promise.all([
+  const isAdmin = actor.roles.includes(ROLES.ADMIN);
+
+  const [templates, instructorOptions, leaderOptions, memberOptions] = await Promise.all([
     projectTemplateRepository.findActiveOptions(),
-    projectRepository.findActiveUserCandidates(),
+    listProjectUserCandidatesService(actor, { kind: "instructor" }),
+    isAdmin ? listProjectUserCandidatesService(actor, { kind: "leader" }) : Promise.resolve([]),
+    listProjectUserCandidatesService(actor, { kind: "member" }),
   ]);
 
   return (
@@ -39,9 +43,12 @@ export default async function NewProjectPage() {
       <ProjectForm
         mode="create"
         templates={templates}
-        userOptions={userOptions}
+        instructorOptions={instructorOptions}
+        leaderOptions={leaderOptions}
+        memberOptions={memberOptions}
         currentUserId={actor.userId}
-        isAdminCreator={actor.roles.includes(ROLES.ADMIN)}
+        currentUserName={actor.fullName}
+        isAdminCreator={isAdmin}
       />
     </div>
   );

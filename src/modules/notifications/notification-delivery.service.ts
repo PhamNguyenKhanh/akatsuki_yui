@@ -99,7 +99,7 @@ export async function getSmtpQuotaStatus(now: Date = new Date()): Promise<SmtpQu
   const rows = await prisma.$queryRaw<{ cnt: number }[]>`
     SELECT COUNT(*)::int AS "cnt"
     FROM "SmtpQuotaAttempt"
-    WHERE "createdAt" >= ${windowStart24h}
+    WHERE "createdAt" >= (${windowStart24h}::timestamptz AT TIME ZONE 'UTC')
   `;
   const usedLast24h = Number(rows[0]?.cnt ?? 0);
   const remainingLast24h = Math.max(0, dailyLimit - usedLast24h);
@@ -146,10 +146,10 @@ export async function reserveSmtpQuotaSlot(
 
     const counts = await tx.$queryRaw<{ day_cnt: number; min_cnt: number }[]>`
       SELECT
-        COUNT(*) FILTER (WHERE "createdAt" >= ${window24h})::int AS "day_cnt",
-        COUNT(*) FILTER (WHERE "createdAt" >= ${window1m})::int AS "min_cnt"
+        COUNT(*) FILTER (WHERE "createdAt" >= (${window24h}::timestamptz AT TIME ZONE 'UTC'))::int AS "day_cnt",
+        COUNT(*) FILTER (WHERE "createdAt" >= (${window1m}::timestamptz AT TIME ZONE 'UTC'))::int AS "min_cnt"
       FROM "SmtpQuotaAttempt"
-      WHERE "createdAt" >= ${window24h}
+      WHERE "createdAt" >= (${window24h}::timestamptz AT TIME ZONE 'UTC')
     `;
 
     const usedLast24h = Number(counts[0]?.day_cnt ?? 0);
@@ -180,7 +180,7 @@ export async function reserveSmtpQuotaSlot(
     const attemptId = randomUUID();
     await tx.$executeRaw`
       INSERT INTO "SmtpQuotaAttempt" ("id", "deliveryId", "createdAt")
-      VALUES (${attemptId}::uuid, ${deliveryId}::uuid, ${now})
+      VALUES (${attemptId}::uuid, ${deliveryId}::uuid, (${now}::timestamptz AT TIME ZONE 'UTC'))
     `;
 
     return {
@@ -751,11 +751,12 @@ export async function cleanupOldSmtpQuotaAttemptsBatch(limit = 200): Promise<num
     return 0;
   }
   const safeLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
+  const cutoff = new Date(Date.now() - 25 * 60 * 60 * 1000);
   const deleted = await prisma.$executeRaw`
     WITH expired AS (
       SELECT "id"
       FROM "SmtpQuotaAttempt"
-      WHERE "createdAt" < NOW() - INTERVAL '25 hours'
+      WHERE "createdAt" < (${cutoff}::timestamptz AT TIME ZONE 'UTC')
       LIMIT ${safeLimit}
     )
     DELETE FROM "SmtpQuotaAttempt"

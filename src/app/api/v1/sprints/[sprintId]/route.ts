@@ -1,4 +1,5 @@
 import { apiError, apiSuccess } from "@/lib/api-response";
+import { enforceApiWriteRateLimit } from "@/lib/rate-limit";
 import { parseJsonBody } from "@/lib/request";
 import { requireActiveUser } from "@/modules/authorization/require-auth";
 import { getSprintDetailService, updateSprintService } from "@/modules/sprints/sprint.service";
@@ -21,6 +22,7 @@ export async function GET(_request: Request, context: RouteContext) {
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const actor = await requireActiveUser();
+    await enforceApiWriteRateLimit(actor.userId);
     const { sprintId } = await context.params;
     const body = await parseJsonBody(request);
     const result = await updateSprintService(actor, sprintId, body);

@@ -1,6 +1,10 @@
 import "server-only";
-import { TaskHistoryAction, TaskStatus } from "@prisma/client";
-import { acquireAdvisoryXactLock, acquireProjectShareLock } from "@/lib/db-locks";
+import { TaskHistoryAction } from "@prisma/client";
+import {
+  acquireAdvisoryXactLock,
+  acquireProjectShareLock,
+  acquireTaskUpdateLock,
+} from "@/lib/db-locks";
 import { badRequestError, conflictError, notFoundError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { isPrismaUniqueViolation } from "@/lib/prisma-errors";
@@ -12,6 +16,7 @@ import { taskRepository, type TaskDependencyItemDTO } from "@/modules/tasks/task
 import {
   assertProjectNotArchivedForTaskMutation,
   assertTaskLeaderAccess,
+  assertTaskNotDoneForMutation,
   assertTaskReadAccess,
   parseTaskId,
 } from "@/modules/tasks/task.access";
@@ -115,14 +120,16 @@ export async function addTaskDependencyService(
       });
       if (preTask) {
         await acquireProjectShareLock(tx, preTask.projectId);
+        await acquireAdvisoryXactLock(tx, `task_dep:${preTask.projectId}`);
+        await acquireTaskUpdateLock(tx, validTaskId);
       }
       const { task, project } = await assertTaskLeaderAccess(actor, validTaskId, tx);
       assertProjectNotArchivedForTaskMutation(project.status);
 
-      // Serialize dependency graph mutations inside the Project so concurrent opposite
-      // additions (e.g. A->B and B->A) cannot bypass cycle detection.
-      const lockKey = `task_dep:${project.id}`;
-      await acquireAdvisoryXactLock(tx, lockKey);
+      // Acquire advisory lock only if preTask missed (e.g. non-existent or mock edge)
+      if (!preTask || preTask.projectId !== project.id) {
+        await acquireAdvisoryXactLock(tx, `task_dep:${project.id}`);
+      }
 
       const [freshTask, dependsOnTask] = await Promise.all([
         tx.task.findUnique({
@@ -157,21 +164,7 @@ export async function addTaskDependencyService(
         );
       }
 
-      if (freshTask.status === TaskStatus.DONE && dependsOnTask.status !== TaskStatus.DONE) {
-        throw conflictError(
-          "TASK_DEPENDENCY_NOT_COMPLETED",
-          "Không thể thêm Task tiền điều kiện chưa DONE vào một Task đã hoàn thành (DONE).",
-          [
-            {
-              field: "dependsOnTaskId",
-              taskId: dependsOnTask.id,
-              taskTitle: dependsOnTask.title,
-              taskStatus: dependsOnTask.status,
-              message: `${formatTaskCode(dependsOnTask.id)} hiện đang ở trạng thái ${dependsOnTask.status}.`,
-            },
-          ]
-        );
-      }
+      assertTaskNotDoneForMutation(freshTask.status);
 
       const existing = await tx.taskDependency.findUnique({
         where: {
@@ -275,8 +268,12 @@ export async function removeTaskDependencyService(
   const validDependsOnTaskId = parsedDepId.data;
 
   return prisma.$transaction(async (tx) => {
-    const { task, project } = await assertTaskLeaderAccess(actor, validTaskId, tx);
+    const { task, project } = await assertTaskLeaderAccess(actor, validTaskId, tx, {
+      lockForMutation: true,
+      advisoryLockKey: (projectId) => `task_dep:${projectId}`,
+    });
     assertProjectNotArchivedForTaskMutation(project.status);
+    assertTaskNotDoneForMutation(task.status);
 
     const existing = await tx.taskDependency.findUnique({
       where: {

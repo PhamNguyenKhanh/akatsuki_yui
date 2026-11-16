@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { apiError, apiSuccess } from "@/lib/api-response";
+import { enforceApiWriteRateLimit } from "@/lib/rate-limit";
 import { parseJsonBody } from "@/lib/request";
 import { requireActiveUser } from "@/modules/authorization/require-auth";
 import type { CreateProjectInput } from "@/modules/projects/project.schema";
@@ -34,6 +35,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: Request) {
   try {
     const actor = await requireActiveUser();
+    await enforceApiWriteRateLimit(actor.userId);
     const body = (await parseJsonBody(request)) as CreateProjectInput;
     const created = await createProjectService(actor, body);
     return apiSuccess(created, { status: 201 });

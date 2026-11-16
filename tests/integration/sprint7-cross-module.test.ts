@@ -30,7 +30,11 @@ import {
   addProjectMemberService,
   removeProjectMemberService,
 } from "@/modules/project-members/member.service";
-import { archiveProjectService, createProjectService } from "@/modules/projects/project.service";
+import {
+  activateProjectService,
+  archiveProjectService,
+  createProjectService,
+} from "@/modules/projects/project.service";
 import { getMemberContributionReportService } from "@/modules/reports/member-contribution.service";
 import { getProjectAnalyticsService } from "@/modules/reports/project-analytics.service";
 import { getProjectSprintReportService } from "@/modules/reports/sprint-report.service";
@@ -88,6 +92,9 @@ describe("Sprint 7 PostgreSQL Integration — Cross-Module Matrix, Locks, Rate L
       });
     }
     if (createdProjectIds.length > 0) {
+      await prisma.document.deleteMany({
+        where: { projectId: { in: createdProjectIds } },
+      });
       await prisma.notification.deleteMany({
         where: { projectId: { in: createdProjectIds } },
       });
@@ -131,16 +138,26 @@ describe("Sprint 7 PostgreSQL Integration — Cross-Module Matrix, Locks, Rate L
     const leaderActor = (await loadTrustedAuthContext(leaderUser.id))!;
     const memberAActor = (await loadTrustedAuthContext(memberAUser.id))!;
 
+    const nowMs = Date.now();
+    const projectStart = new Date(nowMs - 5 * 86_400_000);
+    const projectEnd = new Date(nowMs + 30 * 86_400_000);
+    const sprint1Start = new Date(nowMs - 2 * 86_400_000).toISOString().slice(0, 10);
+    const sprint1End = new Date(nowMs + 12 * 86_400_000).toISOString().slice(0, 10);
+    const sprint2Start = new Date(nowMs).toISOString().slice(0, 10);
+    const sprint2End = new Date(nowMs + 14 * 86_400_000).toISOString().slice(0, 10);
+    const taskDeadline = new Date(nowMs + 7 * 86_400_000);
+
     const project = await createProjectService(leaderActor, {
       name: `Matrix Project ${runTag}`,
       description: "Cross-module verification project",
       objectives: null,
       scope: null,
-      startDate: new Date("2026-11-01T00:00:00Z"),
-      endDate: new Date("2026-12-15T00:00:00Z"),
+      startDate: projectStart,
+      endDate: projectEnd,
       repositoryUrl: null,
     });
     createdProjectIds.push(project.id);
+    await activateProjectService(leaderActor, project.id);
 
     await addProjectMemberService(leaderActor, project.id, {
       userId: memberAUser.id,
@@ -151,12 +168,12 @@ describe("Sprint 7 PostgreSQL Integration — Cross-Module Matrix, Locks, Rate L
       projectRole: ProjectMemberRole.MEMBER,
     });
 
-    // Co-assigned task (8h) + Sole task (5h)
+    // Co-assigned task (8h, includes leaderUser + memberA + memberB so memberA stays co-assigned after memberB departs)
     const coTask = await createTaskService(leaderActor, project.id, {
       title: `Co-Assigned Feature ${runTag}`,
-      deadline: new Date("2026-11-25T00:00:00Z"),
+      deadline: taskDeadline,
       estimateHours: 8,
-      assigneeIds: [memberAUser.id, memberBUser.id],
+      assigneeIds: [leaderUser.id, memberAUser.id, memberBUser.id],
       priority: TaskPriority.HIGH,
       description: null,
       referenceLinks: [],
@@ -164,7 +181,7 @@ describe("Sprint 7 PostgreSQL Integration — Cross-Module Matrix, Locks, Rate L
 
     const soleTask = await createTaskService(leaderActor, project.id, {
       title: `Sole Bugfix ${runTag}`,
-      deadline: new Date("2026-11-26T00:00:00Z"),
+      deadline: taskDeadline,
       estimateHours: 5,
       assigneeIds: [memberAUser.id],
       priority: TaskPriority.MEDIUM,
@@ -175,13 +192,13 @@ describe("Sprint 7 PostgreSQL Integration — Cross-Module Matrix, Locks, Rate L
     // Two concurrent ACTIVE Sprints (DEC-006)
     const { sprint: sprint1 } = await createSprintService(leaderActor, project.id, {
       name: `Sprint One ${runTag}`,
-      startDate: "2026-11-01",
-      endDate: "2026-11-15",
+      startDate: sprint1Start,
+      endDate: sprint1End,
     });
     const { sprint: sprint2 } = await createSprintService(leaderActor, project.id, {
       name: `Sprint Two ${runTag}`,
-      startDate: "2026-11-05",
-      endDate: "2026-11-20",
+      startDate: sprint2Start,
+      endDate: sprint2End,
     });
 
     await assignTasksToSprintService(leaderActor, sprint1.id, {
@@ -191,12 +208,12 @@ describe("Sprint 7 PostgreSQL Integration — Cross-Module Matrix, Locks, Rate L
     await activateSprintService(leaderActor, sprint2.id);
 
     // Move coTask -> IN_PROGRESS -> REVIEW -> Reject -> Resubmit -> Approve (DONE)
-    await updateTaskStatusService(memberAActor, coTask.id, { status: TaskStatus.IN_PROGRESS });
+    await updateTaskStatusService(memberAActor, coTask.id, TaskStatus.IN_PROGRESS);
     await submitTaskForReviewService(memberAActor, coTask.id, {});
-    await rejectTaskReviewService(leaderActor, coTask.id, { comment: "Fix edge validation" });
-    await updateTaskStatusService(memberAActor, coTask.id, { status: TaskStatus.IN_PROGRESS });
+    await rejectTaskReviewService(leaderActor, coTask.id, { reason: "Fix edge validation" });
+    await updateTaskStatusService(memberAActor, coTask.id, TaskStatus.IN_PROGRESS);
     await submitTaskForReviewService(memberAActor, coTask.id, {});
-    await approveTaskReviewService(leaderActor, coTask.id, { comment: "Approved" });
+    await approveTaskReviewService(leaderActor, coTask.id, { reason: "Approved" });
 
     // Remove Member B cleanly after historical contribution & create Document
     await removeProjectMemberService(leaderActor, project.id, memberBUser.id);
@@ -208,11 +225,18 @@ describe("Sprint 7 PostgreSQL Integration — Cross-Module Matrix, Locks, Rate L
       description: "Design spec link",
     });
 
-    // Complete Sprint 1 rolling soleTask back to backlog, then mutate coTask estimate post-completion (DEC-058!)
+    // Complete Sprint 1 rolling soleTask back to backlog; DONE coTask stays strictly read-only (SEC-08)
     await completeSprintService(leaderActor, sprint1.id, {
       taskDispositions: [{ taskId: soleTask.id, action: "MOVE_TO_BACKLOG" }],
     });
-    await updateTaskService(leaderActor, coTask.id, { estimateHours: 24 });
+    await expect(
+      updateTaskService(leaderActor, coTask.id, { estimateHours: 24 })
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: "TASK_ALREADY_COMPLETED",
+    });
+    // Mutate unfinished soleTask estimate post-completion -> Sprint 1 baseline stays frozen at 13h (DEC-058!)
+    await updateTaskService(leaderActor, soleTask.id, { estimateHours: 24 });
 
     // 1. Operational Dashboard: shows remaining ACTIVE sprint (`sprint2`) & Task Work Progress (1/2 DONE = 50%), NOT Document count in task summary
     const dashboard = await getOperationalDashboardService(leaderActor, { projectId: project.id });
@@ -230,7 +254,7 @@ describe("Sprint 7 PostgreSQL Integration — Cross-Module Matrix, Locks, Rate L
     expect(memberARow.currentAssigned.coAssignedCount).toBe(1);
     expect(memberARow.currentAssigned.soleAssignedCount).toBe(1);
     expect(memberARow.verifiableActivity.reviewsSubmittedCount).toBe(2);
-    expect(memberBRow.membershipStatus).toBe("REMOVED");
+    expect(memberBRow.membershipStatus).toBe("LEFT_PROJECT");
     expect(fullContrib.projectTotals.totalTasks).toBe(2); // Docs excluded cleanly from task totals!
 
     const memberSelfContrib = await getMemberContributionReportService(memberAActor, project.id, {
@@ -261,7 +285,11 @@ describe("Sprint 7 PostgreSQL Integration — Cross-Module Matrix, Locks, Rate L
       projectId: project.id,
       limit: 50,
     });
-    expect(activity.items.some((e) => e.entityType === "ProjectMember")).toBe(true);
+    expect(
+      activity.items.some(
+        (e) => e.action === "PROJECT_MEMBER_ADDED" || e.action === "PROJECT_MEMBER_REMOVED"
+      )
+    ).toBe(true);
     expect(activity.items.some((e) => e.entityType === "Document")).toBe(true);
     expect(activity.items.some((e) => e.source === "TASK")).toBe(true);
     expect(activity.items.every((e) => e.action !== "ROLE_PERMISSION_GRANTED")).toBe(true);

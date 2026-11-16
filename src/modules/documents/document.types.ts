@@ -26,7 +26,7 @@ export interface DocumentDTO {
   sprintId: string | null;
   uploadedById: string;
   title: string;
-  url: string;
+  url: string | null;
   category: DocumentCategory;
   description: string | null;
   createdAt: string;

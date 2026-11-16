@@ -1,13 +1,15 @@
 import "server-only";
 import { Prisma, ProjectMemberRole, ProjectStatus } from "@prisma/client";
+import { acquireProjectUpdateLock } from "@/lib/db-locks";
 import { badRequestError, conflictError, forbiddenError, notFoundError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { isPrismaUniqueViolation } from "@/lib/prisma-errors";
 import { PERMISSIONS } from "@/modules/authorization/constants";
-import { assertPermission } from "@/modules/authorization/policy.service";
+import { assertPermission, hasPermission } from "@/modules/authorization/policy.service";
 import { schedulePostCommitEmailDispatch } from "@/modules/notifications/notification-delivery.service";
 import { recordProjectMemberAddedNotification } from "@/modules/notifications/notification-domain-events";
+import { taskAssignmentGuard } from "@/modules/project-members/task-assignment-guard";
 import {
   assertActiveUsersExist,
   assertProjectLeaderAccess,
@@ -18,10 +20,12 @@ import {
 import {
   mapProjectToDTO,
   projectRepository,
+  type ProjectCandidateUserDTO,
   type ProjectDTO,
 } from "@/modules/projects/project.repository";
 import {
   createProjectSchema,
+  projectCandidateQuerySchema,
   projectListQuerySchema,
   restoreProjectSchema,
   updateProjectSchema,
@@ -221,6 +225,7 @@ export async function updateProjectService(
 
   const updated = await prisma.$transaction(async (tx) => {
     await assertProjectLeaderAccess(actor, validProjectId, tx);
+    await acquireProjectUpdateLock(tx, validProjectId);
 
     const current = await projectRepository.findById(validProjectId, tx);
     if (!current) {
@@ -256,7 +261,40 @@ export async function updateProjectService(
     }
 
     if (input.instructorId !== undefined && input.instructorId !== null) {
+      if (input.instructorId === current.leaderId) {
+        throw conflictError(
+          "CONFLICT",
+          "Project Leader hiện tại không thể đồng thời giữ vai trò Instructor của Project."
+        );
+      }
       await assertActiveUsersExist(tx, [input.instructorId], "instructorId");
+    }
+
+    const isInstructorChanging =
+      input.instructorId !== undefined && input.instructorId !== current.instructorId;
+    let existingNewInstructorMembership: { id: string; projectRole: ProjectMemberRole } | null =
+      null;
+
+    if (isInstructorChanging) {
+      if (current.instructorId) {
+        await taskAssignmentGuard.assertNoActiveProjectTasks(tx, current.id, current.instructorId);
+      }
+      if (input.instructorId) {
+        existingNewInstructorMembership = await tx.projectMember.findFirst({
+          where: {
+            projectId: current.id,
+            userId: input.instructorId,
+            leftAt: null,
+          },
+          select: { id: true, projectRole: true },
+        });
+        if (
+          existingNewInstructorMembership &&
+          existingNewInstructorMembership.projectRole !== ProjectMemberRole.INSTRUCTOR
+        ) {
+          await taskAssignmentGuard.assertNoActiveProjectTasks(tx, current.id, input.instructorId);
+        }
+      }
     }
 
     const updateData: Prisma.ProjectUpdateInput = {
@@ -293,7 +331,7 @@ export async function updateProjectService(
       select: projectDetailSelectSafe(),
     });
 
-    if (input.instructorId !== undefined && input.instructorId !== current.instructorId) {
+    if (isInstructorChanging) {
       const now = new Date();
       if (current.instructorId) {
         await tx.projectMember.updateMany({
@@ -307,21 +345,14 @@ export async function updateProjectService(
         });
       }
 
-      if (input.instructorId && input.instructorId !== current.leaderId) {
-        const existingActive = await tx.projectMember.findFirst({
-          where: {
-            projectId: current.id,
-            userId: input.instructorId,
-            leftAt: null,
-          },
-          select: { id: true },
-        });
-
-        if (existingActive) {
-          await tx.projectMember.update({
-            where: { id: existingActive.id },
-            data: { projectRole: ProjectMemberRole.INSTRUCTOR },
-          });
+      if (input.instructorId) {
+        if (existingNewInstructorMembership) {
+          if (existingNewInstructorMembership.projectRole !== ProjectMemberRole.INSTRUCTOR) {
+            await tx.projectMember.update({
+              where: { id: existingNewInstructorMembership.id },
+              data: { projectRole: ProjectMemberRole.INSTRUCTOR },
+            });
+          }
         } else {
           await tx.projectMember.create({
             data: {
@@ -614,7 +645,7 @@ export async function restoreProjectService(
       throw notFoundError("Không tìm thấy Project sau khi khôi phục.");
     }
 
-    logger.info("Project restored", {
+      logger.info("Project restored", {
       actorId: actor.userId,
       projectId: restored.id,
       targetStatus,
@@ -629,4 +660,59 @@ export async function restoreProjectService(
     }
     throw error;
   }
+}
+
+export async function listProjectUserCandidatesService(
+  actor: AuthContext,
+  rawQuery: Record<string, unknown> = {}
+): Promise<ProjectCandidateUserDTO[]> {
+  const query = projectCandidateQuerySchema.parse(rawQuery);
+  let excludeUserIds: string[] = [];
+
+  if (query.projectId) {
+    const canManageThisProject =
+      hasPermission(actor, PERMISSIONS.PROJECT_UPDATE) ||
+      hasPermission(actor, PERMISSIONS.PROJECT_MEMBER_MANAGE);
+    if (!canManageThisProject) {
+      throw forbiddenError("Bạn không có quyền truy cập danh sách ứng viên của Project.");
+    }
+
+    const project = await assertProjectLeaderAccess(actor, query.projectId);
+
+    if (query.kind === "instructor") {
+      assertPermission(actor, PERMISSIONS.PROJECT_UPDATE);
+      excludeUserIds = [project.leaderId];
+    } else if (query.kind === "leader") {
+      assertPermission(actor, PERMISSIONS.PROJECT_MEMBER_MANAGE);
+      excludeUserIds = [project.leaderId];
+    } else {
+      assertPermission(actor, PERMISSIONS.PROJECT_MEMBER_MANAGE);
+      if (query.excludeCurrentMembers) {
+        const activeMembers = await prisma.projectMember.findMany({
+          where: { projectId: project.id, leftAt: null },
+          select: { userId: true },
+        });
+        excludeUserIds = Array.from(
+          new Set([project.leaderId, ...activeMembers.map((item) => item.userId)])
+        );
+      } else {
+        excludeUserIds = [project.leaderId];
+      }
+    }
+  } else {
+    assertPermission(actor, PERMISSIONS.PROJECT_CREATE);
+    if (query.kind === "leader" && !isWorkspaceAdmin(actor)) {
+      throw forbiddenError("Chỉ Admin mới có quyền chọn Project Leader khác (BR-PROJ-003).");
+    }
+    if (query.kind === "member") {
+      excludeUserIds = [actor.userId];
+    }
+  }
+
+  return projectRepository.findProjectUserCandidates({
+    kind: query.kind,
+    search: query.q,
+    excludeUserIds,
+    take: query.limit,
+  });
 }

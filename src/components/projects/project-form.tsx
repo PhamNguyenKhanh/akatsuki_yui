@@ -18,9 +18,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useProjectCandidateSearch } from "@/lib/use-project-candidate-search";
 import type { ProjectTemplateDTO } from "@/modules/project-templates/template.repository";
 import { createProjectAction, updateProjectAction } from "@/modules/projects/project.actions";
-import type { ProjectDTO, SelectableUserOptionDTO } from "@/modules/projects/project.repository";
+import type { ProjectCandidateUserDTO, ProjectDTO } from "@/modules/projects/project.repository";
 
 const NONE_VALUE = "__NONE__";
 
@@ -33,15 +34,21 @@ export function ProjectForm({
   mode,
   initialProject,
   templates,
-  userOptions,
+  instructorOptions: initialInstructorOptions,
+  leaderOptions: initialLeaderOptions = [],
+  memberOptions: initialMemberOptions = [],
   currentUserId,
+  currentUserName,
   isAdminCreator,
 }: {
   mode: "create" | "edit";
   initialProject?: ProjectDTO;
   templates: ProjectTemplateDTO[];
-  userOptions: SelectableUserOptionDTO[];
+  instructorOptions: ProjectCandidateUserDTO[];
+  leaderOptions?: ProjectCandidateUserDTO[];
+  memberOptions?: ProjectCandidateUserDTO[];
   currentUserId: string;
+  currentUserName?: string;
   isAdminCreator: boolean;
 }) {
   const router = useRouter();
@@ -139,19 +146,33 @@ export function ProjectForm({
     );
   }
 
+  const instructorSearch = useProjectCandidateSearch({
+    initialItems: initialInstructorOptions,
+    kind: "instructor",
+    projectId: initialProject?.id,
+  });
+
+  const memberSearch = useProjectCandidateSearch({
+    initialItems: initialMemberOptions,
+    kind: "member",
+    enabled: mode === "create",
+  });
+
   const instructorOptions = React.useMemo(() => {
-    const prioritized = userOptions.filter((u) => u.roles.includes("INSTRUCTOR"));
-    return prioritized.length > 0 ? prioritized : userOptions;
-  }, [userOptions]);
+    if (
+      initialProject?.instructor &&
+      !instructorSearch.items.some((u) => u.id === initialProject.instructor!.id)
+    ) {
+      return [
+        { id: initialProject.instructor.id, fullName: initialProject.instructor.fullName },
+        ...instructorSearch.items,
+      ];
+    }
+    return instructorSearch.items;
+  }, [initialProject, instructorSearch.items]);
 
-  const leaderOptions = React.useMemo(() => {
-    const prioritized = userOptions.filter(
-      (u) => u.roles.includes("LEADER") || u.roles.includes("ADMIN")
-    );
-    return prioritized.length > 0 ? prioritized : userOptions;
-  }, [userOptions]);
-
-  const currentLeaderUser = userOptions.find((u) => u.id === leaderId);
+  const leaderOptions = initialLeaderOptions;
+  const currentLeaderUser = leaderOptions.find((u) => u.id === leaderId);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -328,15 +349,15 @@ export function ProjectForm({
                     <SelectContent>
                       {leaderOptions.map((user) => (
                         <SelectItem key={user.id} value={user.id}>
-                          {user.fullName} ({user.roles.join(", ")})
+                          {user.fullName}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 ) : (
                   <div className="flex h-9 items-center rounded-md border border-input bg-slate-50 px-3 text-sm text-slate-700">
-                    {currentLeaderUser
-                      ? `${currentLeaderUser.fullName} (Tự động theo BR-PROJ-003)`
+                    {currentUserName ?? currentLeaderUser?.fullName
+                      ? `${currentUserName ?? currentLeaderUser?.fullName} (Tự động theo BR-PROJ-003)`
                       : "Bạn sẽ tự động trở thành Project Leader (BR-PROJ-003)"}
                   </div>
                 )}
@@ -353,11 +374,18 @@ export function ProjectForm({
                   <SelectItem value={NONE_VALUE}>Không chỉ định Instructor (Tùy chọn)</SelectItem>
                   {instructorOptions.map((user) => (
                     <SelectItem key={user.id} value={user.id}>
-                      {user.fullName} ({user.email})
+                      {user.fullName}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <Input
+                value={instructorSearch.query}
+                onChange={(e) => instructorSearch.setQuery(e.target.value)}
+                placeholder="Tìm Giảng viên theo họ tên..."
+                aria-label="Tìm Giảng viên theo họ tên"
+                className="h-8 text-xs"
+              />
             </div>
 
             <div className="space-y-1.5 md:col-span-2">
@@ -406,42 +434,47 @@ export function ProjectForm({
             </div>
           </div>
 
-          {mode === "create" && userOptions.length > 0 && (
-            <div className="space-y-2 rounded-md border border-border p-4">
-              <div>
-                <p className="text-sm font-medium text-slate-900">
-                  Thêm thành viên ban đầu (Tùy chọn)
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Chỉ các tài khoản ACTIVE mới được hiển thị. Bạn vẫn có thể thêm/gỡ thành viên sau
-                  trong trang chi tiết Project.
-                </p>
+          {mode === "create" &&
+            (initialMemberOptions.length > 0 || memberSearch.query.trim().length > 0) && (
+              <div className="space-y-3 rounded-md border border-border p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">
+                      Thêm thành viên ban đầu (Tùy chọn)
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Chỉ hiển thị tối đa 50 ứng viên ACTIVE phù hợp mỗi lần tải. Bạn vẫn có thể
+                      thêm/gỡ thành viên sau trong trang chi tiết Project.
+                    </p>
+                  </div>
+                  <Input
+                    value={memberSearch.query}
+                    onChange={(e) => memberSearch.setQuery(e.target.value)}
+                    placeholder="Tìm thành viên theo họ tên..."
+                    aria-label="Tìm thành viên theo họ tên"
+                    className="h-8 w-full text-xs sm:w-64"
+                  />
+                </div>
+                <div className="grid max-h-48 gap-2 overflow-y-auto pt-1 sm:grid-cols-2 lg:grid-cols-3">
+                  {memberSearch.items
+                    .filter((u) => u.id !== leaderId && u.id !== instructorId)
+                    .map((user) => (
+                      <label
+                        key={user.id}
+                        className="flex cursor-pointer items-center gap-2 rounded border border-border px-3 py-2 text-xs hover:bg-slate-50"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedMemberIds.includes(user.id)}
+                          onChange={() => toggleInitialMember(user.id)}
+                          className="h-4 w-4 rounded border-slate-300"
+                        />
+                        <span className="truncate font-medium text-slate-900">{user.fullName}</span>
+                      </label>
+                    ))}
+                </div>
               </div>
-              <div className="grid max-h-48 gap-2 overflow-y-auto pt-1 sm:grid-cols-2 lg:grid-cols-3">
-                {userOptions
-                  .filter((u) => u.id !== leaderId && u.id !== instructorId)
-                  .map((user) => (
-                    <label
-                      key={user.id}
-                      className="flex cursor-pointer items-center gap-2 rounded border border-border px-3 py-2 text-xs hover:bg-slate-50"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedMemberIds.includes(user.id)}
-                        onChange={() => toggleInitialMember(user.id)}
-                        className="h-4 w-4 rounded border-slate-300"
-                      />
-                      <span className="truncate">
-                        <strong className="font-medium text-slate-900">{user.fullName}</strong>
-                        <span className="block text-[11px] text-muted-foreground">
-                          {user.roles.join(", ")} · {user.email}
-                        </span>
-                      </span>
-                    </label>
-                  ))}
-              </div>
-            </div>
-          )}
+            )}
 
           <div className="flex flex-wrap items-center justify-end gap-3">
             <Button asChild type="button" variant="outline" disabled={submitting}>

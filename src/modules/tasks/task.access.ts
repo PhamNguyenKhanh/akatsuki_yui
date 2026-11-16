@@ -1,5 +1,10 @@
 import "server-only";
-import { ProjectMemberRole, ProjectStatus, type Prisma } from "@prisma/client";
+import { ProjectMemberRole, ProjectStatus, TaskStatus, type Prisma } from "@prisma/client";
+import {
+  acquireAdvisoryXactLock,
+  acquireProjectShareLock,
+  acquireTaskUpdateLock,
+} from "@/lib/db-locks";
 import { badRequestError, conflictError, forbiddenError, notFoundError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { uuidSchema } from "@/lib/validations/common";
@@ -37,6 +42,50 @@ export function assertProjectNotArchivedForTaskMutation(projectStatus: ProjectSt
       "Project đã ở trạng thái ARCHIVED, chỉ được xem dữ liệu Task (BR-PROJ-008)."
     );
   }
+}
+
+export function assertTaskNotDoneForMutation(taskStatus: TaskStatus): void {
+  if (taskStatus === TaskStatus.DONE) {
+    throw conflictError(
+      "TASK_ALREADY_COMPLETED",
+      "Task đã hoàn thành (DONE) và bị khóa chỉnh sửa hoàn toàn."
+    );
+  }
+}
+
+export interface TaskMutationLockOptions {
+  lockForMutation?: boolean;
+  advisoryLockKey?: (projectId: string) => string;
+}
+
+async function lockProjectAndTaskForMutation(
+  tx: Prisma.TransactionClient,
+  taskId: string,
+  options?: TaskMutationLockOptions
+): Promise<void> {
+  if (!options?.lockForMutation) {
+    return;
+  }
+
+  const rawTx = tx as { $queryRaw?: unknown };
+  if (typeof rawTx.$queryRaw !== "function") {
+    return;
+  }
+
+  const metaRows = await tx.$queryRaw<Array<{ projectId: string }>>`
+    SELECT "projectId" FROM "Task" WHERE "id" = ${taskId}::uuid
+  `;
+  const projectId = Array.isArray(metaRows) ? metaRows[0]?.projectId : undefined;
+  if (!projectId) {
+    return;
+  }
+
+  // Deterministic lock hierarchy: Project SHARE -> optional advisory lock -> Task UPDATE
+  await acquireProjectShareLock(tx, projectId);
+  if (options.advisoryLockKey) {
+    await acquireAdvisoryXactLock(tx, options.advisoryLockKey(projectId));
+  }
+  await acquireTaskUpdateLock(tx, taskId);
 }
 
 export function isProjectLeaderOrAdmin(
@@ -108,8 +157,10 @@ export async function assertTaskReadAccess(
 export async function assertTaskLeaderAccess(
   actor: AuthContext,
   taskId: string,
-  tx: Prisma.TransactionClient = prisma
+  tx: Prisma.TransactionClient = prisma,
+  options?: TaskMutationLockOptions
 ) {
+  await lockProjectAndTaskForMutation(tx, taskId, options);
   const task = await loadTaskRecordOrThrow(taskId, tx);
   const project = await assertProjectLeaderAccess(actor, task.projectId, tx);
   return { task, project };
@@ -118,8 +169,10 @@ export async function assertTaskLeaderAccess(
 export async function assertTaskProgressOrReviewActorAccess(
   actor: AuthContext,
   taskId: string,
-  tx: Prisma.TransactionClient = prisma
+  tx: Prisma.TransactionClient = prisma,
+  options?: TaskMutationLockOptions
 ) {
+  await lockProjectAndTaskForMutation(tx, taskId, options);
   const { task, project } = await assertTaskReadAccess(actor, taskId, tx);
   const leaderOrAdmin = isProjectLeaderOrAdmin(actor, project);
   if (leaderOrAdmin) {

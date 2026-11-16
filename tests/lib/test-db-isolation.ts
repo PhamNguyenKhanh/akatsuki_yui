@@ -1,3 +1,5 @@
+import { config as loadDotenv } from "dotenv";
+
 export interface ParsedDatabaseIdentity {
   protocol: string;
   host: string;
@@ -101,6 +103,12 @@ export function validateTestDatabaseIsolation(env: Record<string, string | undef
   }
 
   return rawTestUrl;
+}
+
+export function loadTestEnvFiles(): void {
+  // Prioritize .env.local (localhost config) over .env (Vercel/shared fallback) without overriding shell env
+  loadDotenv({ path: ".env.local", quiet: true });
+  loadDotenv({ path: ".env", quiet: true });
 }
 
 export function applyIsolatedTestDatabaseEnv(env: Record<string, string | undefined>): string {

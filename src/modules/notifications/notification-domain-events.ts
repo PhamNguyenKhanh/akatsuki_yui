@@ -95,6 +95,12 @@ export async function recordAccountStatusDecisionNotifications(
   }
 
   const isApproved = input.action === "APPROVE";
+  const displayName = input.targetUserFullName.trim() || input.targetUserEmail;
+  const title = (
+    isApproved
+      ? `Tài khoản ${displayName} của bạn đã được phê duyệt`
+      : `Thông báo kết quả đăng ký tài khoản ${displayName} trên Akatsuki Yui`
+  ).slice(0, 255);
 
   return createNotificationsInTransaction(tx, [
     {
@@ -103,11 +109,9 @@ export async function recordAccountStatusDecisionNotifications(
       actorId: input.actorId,
       projectId: null,
       type: isApproved ? NotificationType.ACCOUNT_APPROVED : NotificationType.ACCOUNT_REJECTED,
-      title: isApproved
-        ? "Tài khoản Akatsuki Yui của bạn đã được phê duyệt"
-        : "Thông báo kết quả đăng ký tài khoản Akatsuki Yui",
+      title,
       message: isApproved
-        ? `Xin chúc mừng ${input.targetUserFullName}, tài khoản (${input.targetUserEmail}) đã được Admin phê duyệt. Bạn đã có thể đăng nhập vào hệ thống.`
+        ? `Tài khoản (${input.targetUserEmail}) của bạn đã được Admin phê duyệt. Bạn đã có thể đăng nhập vào hệ thống.`
         : `Yêu cầu đăng ký tài khoản (${input.targetUserEmail}) của bạn đã bị từ chối bởi Quản trị viên. Vui lòng liên hệ Admin nhóm nếu bạn cần hỗ trợ thêm.`,
       targetUrl: isApproved ? "/dashboard" : null,
       entityType: "User",

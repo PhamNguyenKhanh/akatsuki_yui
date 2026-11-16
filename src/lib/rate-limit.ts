@@ -1,6 +1,7 @@
 import "server-only";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHmac, randomUUID } from "node:crypto";
+import { isIP } from "node:net";
 import { headers as nextHeaders } from "next/headers";
 import { isAppError, rateLimitExceededError, serviceUnavailableError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
@@ -80,7 +81,7 @@ export interface RateLimitResult {
 
 type RateLimitMode = "check" | "consume" | "record";
 
-const rateLimitExecutionStore = new AsyncLocalStorage<Set<string>>();
+const rateLimitExecutionStore = new AsyncLocalStorage<Map<string, RateLimitResult>>();
 
 /**
  * Ensures any nested rate-limit evaluations inside the same logical request
@@ -92,7 +93,7 @@ export async function runWithRateLimitContext<T>(fn: () => Promise<T>): Promise<
   if (existing) {
     return fn();
   }
-  return rateLimitExecutionStore.run(new Set<string>(), fn);
+  return rateLimitExecutionStore.run(new Map<string, RateLimitResult>(), fn);
 }
 
 function getRateLimitHmacSecret(): string {
@@ -121,23 +122,52 @@ export function buildRateLimitKeyHash(scope: RateLimitScope, rawIdentifier: stri
     .digest("hex");
 }
 
+function stripOptionalPortFromIp(candidate: string): string {
+  if (candidate.startsWith("[")) {
+    const closingBracket = candidate.indexOf("]");
+    if (closingBracket > 1) {
+      const inside = candidate.slice(1, closingBracket);
+      const remainder = candidate.slice(closingBracket + 1);
+      if (!remainder || /^:\d{1,5}$/.test(remainder)) {
+        return inside;
+      }
+    }
+    return candidate;
+  }
+
+  const firstColon = candidate.indexOf(":");
+  if (firstColon !== -1 && candidate.indexOf(":", firstColon + 1) === -1) {
+    const portPart = candidate.slice(firstColon + 1);
+    if (/^\d{1,5}$/.test(portPart)) {
+      return candidate.slice(0, firstColon);
+    }
+  }
+
+  return candidate;
+}
+
 function sanitizeIpCandidate(rawValue: string | null | undefined): string | null {
   if (!rawValue) return null;
+  if (/[\r\n\0]/.test(rawValue)) return null;
   const firstEntry = rawValue.split(",")[0]?.trim();
-  if (!firstEntry) return null;
-  // Normalize IPv6 bracketed/port syntax where applicable cleanly
-  return firstEntry.slice(0, 128).toLowerCase();
+  if (!firstEntry || firstEntry.length > 64 || /\s/.test(firstEntry)) {
+    return null;
+  }
+  const normalized = stripOptionalPortFromIp(firstEntry).toLowerCase();
+  if (isIP(normalized) === 0) {
+    return null;
+  }
+  return normalized;
 }
 
 export function extractClientIpFromHeaders(headerSource?: Headers | null): string {
-  if (!headerSource) {
+  if (!headerSource || !Boolean(process.env.VERCEL)) {
     return "unknown";
   }
 
   return (
     sanitizeIpCandidate(headerSource.get("x-vercel-forwarded-for")) ||
     sanitizeIpCandidate(headerSource.get("x-real-ip")) ||
-    sanitizeIpCandidate(headerSource.get("x-forwarded-for")) ||
     "unknown"
   );
 }
@@ -185,14 +215,15 @@ async function executeSlidingWindowOp(options: {
   const store = rateLimitExecutionStore.getStore();
   const dedupSignature = `${options.mode}:${rule.scope}:${keyHash}`;
 
-  if (store?.has(dedupSignature)) {
-    return {
-      allowed: true,
-      limit: rule.limit,
-      remaining: rule.limit,
-      retryAfterSeconds: 0,
-      resetAt: new Date(now.getTime() + rule.windowMs),
-    };
+  const cachedOutcome = store?.get(dedupSignature);
+  if (cachedOutcome) {
+    if (!cachedOutcome.allowed && options.mode !== "record") {
+      throw rateLimitExceededError(
+        `${rule.blockMessage} (Thử lại sau khoảng ${cachedOutcome.retryAfterSeconds} giây).`,
+        cachedOutcome.retryAfterSeconds
+      );
+    }
+    return cachedOutcome;
   }
 
   // Unit tests that mock `@/lib/prisma` without SQL transaction primitives run cleanly without fake DB blocking,
@@ -217,10 +248,10 @@ async function executeSlidingWindowOp(options: {
       }
 
       const rows = await tx.$queryRaw<SlidingWindowRow[]>`
-        SELECT COUNT(*)::int AS "cnt", MIN("createdAt") AS "oldest"
+        SELECT COUNT(*)::int AS "cnt", (MIN("createdAt") AT TIME ZONE 'UTC') AS "oldest"
         FROM "RateLimitEvent"
         WHERE "keyHash" = ${keyHash}
-          AND "createdAt" > ${windowStart}
+          AND "createdAt" > (${windowStart}::timestamptz AT TIME ZONE 'UTC')
       `;
 
       const currentCount = Number(rows[0]?.cnt ?? 0);
@@ -238,7 +269,13 @@ async function executeSlidingWindowOp(options: {
         if (typeof (tx as { $executeRaw?: unknown }).$executeRaw === "function") {
           await tx.$executeRaw`
             INSERT INTO "RateLimitEvent" ("id", "keyHash", "scope", "createdAt", "expiresAt")
-            VALUES (${eventId}::uuid, ${keyHash}, ${rule.scope}, ${now}, ${expiresAt})
+            VALUES (
+              ${eventId}::uuid,
+              ${keyHash},
+              ${rule.scope},
+              (${now}::timestamptz AT TIME ZONE 'UTC'),
+              (${expiresAt}::timestamptz AT TIME ZONE 'UTC')
+            )
           `;
         } else {
           await tx.rateLimitEvent.create({
@@ -276,7 +313,13 @@ async function executeSlidingWindowOp(options: {
         if (typeof (tx as { $executeRaw?: unknown }).$executeRaw === "function") {
           await tx.$executeRaw`
             INSERT INTO "RateLimitEvent" ("id", "keyHash", "scope", "createdAt", "expiresAt")
-            VALUES (${eventId}::uuid, ${keyHash}, ${rule.scope}, ${now}, ${expiresAt})
+            VALUES (
+              ${eventId}::uuid,
+              ${keyHash},
+              ${rule.scope},
+              (${now}::timestamptz AT TIME ZONE 'UTC'),
+              (${expiresAt}::timestamptz AT TIME ZONE 'UTC')
+            )
           `;
         } else {
           await tx.rateLimitEvent.create({
@@ -301,7 +344,7 @@ async function executeSlidingWindowOp(options: {
       };
     });
 
-    store?.add(dedupSignature);
+    store?.set(dedupSignature, outcome);
 
     if (!outcome.allowed && options.mode !== "record") {
       throw rateLimitExceededError(
@@ -373,6 +416,15 @@ export async function recordRateLimitFailure(options: {
   });
 }
 
+export async function enforceApiWriteRateLimit(actorId: string): Promise<RateLimitResult> {
+  return runWithRateLimitContext(() =>
+    consumeRateLimit({
+      scope: RATE_LIMIT_SCOPES.API_WRITE_ACTOR,
+      identifier: actorId,
+    })
+  );
+}
+
 /**
  * Enforces Login rate limits in a single execution context:
  * - IP bucket (`auth:login:ip`): counts ALL attempts
@@ -435,11 +487,12 @@ export async function cleanupExpiredRateLimitEventsBatch(limit = 200): Promise<n
     return 0;
   }
   const safeLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
+  const cutoff = new Date();
   const deleted = await prisma.$executeRaw`
     WITH expired AS (
       SELECT "id"
       FROM "RateLimitEvent"
-      WHERE "expiresAt" <= NOW()
+      WHERE "expiresAt" <= (${cutoff}::timestamptz AT TIME ZONE 'UTC')
       LIMIT ${safeLimit}
     )
     DELETE FROM "RateLimitEvent"

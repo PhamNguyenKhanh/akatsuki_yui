@@ -5,13 +5,20 @@ import { isAppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import type { ApiErrorDetail, ApiErrorResponse, ApiSuccessResponse } from "@/types/api";
 
+const API_NO_STORE_HEADER = "no-store, max-age=0";
+
 export function apiSuccess<T, M = Record<string, unknown>>(
   data: T,
   options?: { status?: number; meta?: M }
 ) {
   const payload: ApiSuccessResponse<T, M> = options?.meta ? { data, meta: options.meta } : { data };
 
-  return NextResponse.json(payload, { status: options?.status ?? 200 });
+  return NextResponse.json(payload, {
+    status: options?.status ?? 200,
+    headers: {
+      "Cache-Control": API_NO_STORE_HEADER,
+    },
+  });
 }
 
 export function apiError(error: unknown, context?: { route?: string }) {
@@ -23,13 +30,15 @@ export function apiError(error: unknown, context?: { route?: string }) {
         ...(error.details ? { details: error.details } : {}),
       },
     };
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = {
+      "Cache-Control": API_NO_STORE_HEADER,
+    };
     if (error.statusCode === 429 && typeof error.retryAfterSeconds === "number") {
       headers["Retry-After"] = String(Math.max(1, Math.ceil(error.retryAfterSeconds)));
     }
     return NextResponse.json(body, {
       status: error.statusCode,
-      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+      headers,
     });
   }
 
@@ -45,7 +54,12 @@ export function apiError(error: unknown, context?: { route?: string }) {
         details,
       },
     };
-    return NextResponse.json(body, { status: 400 });
+    return NextResponse.json(body, {
+      status: 400,
+      headers: {
+        "Cache-Control": API_NO_STORE_HEADER,
+      },
+    });
   }
 
   logger.error("Unhandled API error", error, context);
@@ -55,5 +69,10 @@ export function apiError(error: unknown, context?: { route?: string }) {
       message: "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.",
     },
   };
-  return NextResponse.json(body, { status: 500 });
+  return NextResponse.json(body, {
+    status: 500,
+    headers: {
+      "Cache-Control": API_NO_STORE_HEADER,
+    },
+  });
 }

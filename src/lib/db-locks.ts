@@ -30,3 +30,23 @@ export async function acquireProjectShareLock(
     await tx.$queryRaw`SELECT "id" FROM "Project" WHERE "id" = ${projectId}::uuid FOR SHARE`;
   }
 }
+
+export async function acquireProjectUpdateLock(
+  tx: Prisma.TransactionClient,
+  projectId: string
+): Promise<void> {
+  const rawTx = tx as { $queryRaw?: unknown };
+  if (typeof rawTx.$queryRaw === "function") {
+    await tx.$queryRaw`SELECT "id" FROM "Project" WHERE "id" = ${projectId}::uuid FOR UPDATE`;
+  }
+}
+
+export async function acquireTaskUpdateLock(
+  tx: Prisma.TransactionClient,
+  taskId: string
+): Promise<void> {
+  const rawTx = tx as { $queryRaw?: unknown };
+  if (typeof rawTx.$queryRaw === "function") {
+    await tx.$queryRaw`SELECT "id" FROM "Task" WHERE "id" = ${taskId}::uuid FOR UPDATE`;
+  }
+}

@@ -14,6 +14,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { sanitizeInternalTargetPath } from "@/lib/safe-url";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -438,16 +439,19 @@ export function ActivityLogClient({
                           {item.projectStatus === ProjectStatus.ARCHIVED ? " · Archived" : ""}
                         </Badge>
                       )}
-                      {item.targetUrl ? (
-                        <Link
-                          href={item.targetUrl}
-                          className="font-medium text-slate-900 hover:text-primary hover:underline"
-                        >
-                          {item.summary}
-                        </Link>
-                      ) : (
-                        <span className="font-medium text-slate-900">{item.summary}</span>
-                      )}
+                      {(() => {
+                        const safeTargetUrl = sanitizeInternalTargetPath(item.targetUrl);
+                        return safeTargetUrl ? (
+                          <Link
+                            href={safeTargetUrl}
+                            className="font-medium text-slate-900 hover:text-primary hover:underline"
+                          >
+                            {item.summary}
+                          </Link>
+                        ) : (
+                          <span className="font-medium text-slate-900">{item.summary}</span>
+                        );
+                      })()}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {item.actor ? `${item.actor.fullName} (${item.actor.email})` : "Hệ thống"} ·{" "}

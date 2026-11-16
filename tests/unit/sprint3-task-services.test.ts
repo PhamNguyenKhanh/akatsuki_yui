@@ -670,7 +670,7 @@ describe("Sprint 3 Task Services Unit Tests", () => {
       await expectAppError(
         updateTaskStatusService(leaderActor, TASK_A_ID, TaskStatus.IN_PROGRESS),
         409,
-        "INVALID_STATUS_TRANSITION"
+        "TASK_ALREADY_COMPLETED"
       );
 
       prismaMock.task.findUnique.mockResolvedValue(makeTaskRecord({ status: TaskStatus.REVIEW }));
@@ -862,7 +862,7 @@ describe("Sprint 3 Task Services Unit Tests", () => {
         "TASK_DEPENDENCY_EXISTS"
       );
 
-      // DONE task cannot receive non-DONE predecessor
+      // DONE task is read-only and rejects adding any predecessor dependency (SEC-08)
       prismaMock.task.findUnique
         .mockResolvedValueOnce({ projectId: PROJECT_ID })
         .mockResolvedValueOnce(makeTaskRecord({ id: TASK_A_ID, status: TaskStatus.DONE }))
@@ -876,7 +876,7 @@ describe("Sprint 3 Task Services Unit Tests", () => {
       await expectAppError(
         addTaskDependencyService(leaderActor, TASK_A_ID, { dependsOnTaskId: TASK_B_ID }),
         409,
-        "TASK_DEPENDENCY_NOT_COMPLETED"
+        "TASK_ALREADY_COMPLETED"
       );
     });
 

@@ -167,7 +167,19 @@ describe("Sprint 2 PostgreSQL Integration Tests", () => {
       select: { id: true },
     });
 
-    const template = await createProjectTemplateService(leader1Actor, {
+    // DEC-064: Only ADMIN can manage templates; LEADER cannot create project templates
+    await expect(
+      createProjectTemplateService(leader1Actor, {
+        name: `Leader Forbidden Template ${runTag}`,
+        description: "Forbidden",
+        isActive: true,
+      })
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      code: "FORBIDDEN",
+    });
+
+    const template = await createProjectTemplateService(adminActor, {
       name: `Capstone Template ${runTag}`,
       description: "Web template",
       configuration: { defaultTechnologies: ["Next.js", "PostgreSQL"], sprintDays: 14 },
@@ -186,13 +198,13 @@ describe("Sprint 2 PostgreSQL Integration Tests", () => {
     expect(projectA.status).toBe(ProjectStatus.CREATED);
     expect(projectA.leaderId).toBe(leader1Actor.userId);
 
-    // Template referenced by Project A cannot be hard-deleted, only deactivated
-    await expect(deleteProjectTemplateService(leader1Actor, template.id)).rejects.toMatchObject({
+    // Template referenced by Project A cannot be hard-deleted, only deactivated (by ADMIN)
+    await expect(deleteProjectTemplateService(adminActor, template.id)).rejects.toMatchObject({
       statusCode: 409,
       code: "TEMPLATE_IN_USE",
     });
 
-    const deactivatedTemplate = await updateProjectTemplateService(leader1Actor, template.id, {
+    const deactivatedTemplate = await updateProjectTemplateService(adminActor, template.id, {
       isActive: false,
     });
     expect(deactivatedTemplate.isActive).toBe(false);

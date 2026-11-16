@@ -35,9 +35,15 @@ test.describe("Security Headers, IDOR, Body Size Limits, Rate Limit & Responsive
       status: UserStatus.ACTIVE,
     });
     createdUserIds.push(admin.id, outsider.id);
+    await prisma.rateLimitEvent.deleteMany({
+      where: { scope: { in: ["auth:login:ip", "auth:login:fail"] } },
+    });
   });
 
   test.afterAll(async () => {
+    await prisma.rateLimitEvent.deleteMany({
+      where: { scope: { in: ["auth:login:ip", "auth:login:fail"] } },
+    });
     await cleanupE2EByRunTag(prisma, runTag, createdUserIds, createdProjectIds);
     await prisma.$disconnect();
   });

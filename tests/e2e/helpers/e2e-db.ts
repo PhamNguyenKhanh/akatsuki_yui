@@ -1,11 +1,10 @@
-import { config as loadDotenv } from "dotenv";
 import { PrismaClient, UserStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { validateTestDatabaseIsolation } from "../../lib/test-db-isolation";
+import { loadTestEnvFiles, validateTestDatabaseIsolation } from "../../lib/test-db-isolation";
 import { ROLES, type RoleName } from "../../../src/modules/authorization/constants";
 import { runSafeSeed } from "../../../prisma/seed-helpers";
 
-loadDotenv({ quiet: true });
+loadTestEnvFiles();
 
 export function createIsolatedE2EPrisma(): PrismaClient {
   const testDbUrl = validateTestDatabaseIsolation(process.env);
@@ -69,6 +68,7 @@ export async function cleanupE2EByRunTag(
   projectIds: string[]
 ) {
   if (projectIds.length > 0) {
+    await prisma.document.deleteMany({ where: { projectId: { in: projectIds } } });
     await prisma.notification.deleteMany({ where: { projectId: { in: projectIds } } });
     await prisma.activityLog.deleteMany({ where: { projectId: { in: projectIds } } });
     await prisma.project.deleteMany({ where: { id: { in: projectIds } } });

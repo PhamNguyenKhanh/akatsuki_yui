@@ -236,7 +236,9 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-7xl flex-1 p-4 sm:p-6">{children}</main>
+        <main className="mx-auto min-w-0 w-full max-w-7xl flex-1 overflow-x-clip p-4 sm:p-6">
+          {children}
+        </main>
       </div>
     </div>
   );

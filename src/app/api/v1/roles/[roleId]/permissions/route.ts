@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { apiError, apiSuccess } from "@/lib/api-response";
+import { enforceApiWriteRateLimit } from "@/lib/rate-limit";
 import { parseJsonBody } from "@/lib/request";
 import { requireActiveUser } from "@/modules/authorization/require-auth";
 import type {
@@ -19,6 +20,7 @@ type RouteContext = {
 export async function POST(request: Request, context: RouteContext) {
   try {
     const actor = await requireActiveUser();
+    await enforceApiWriteRateLimit(actor.userId);
     const { roleId } = await context.params;
     const body = (await parseJsonBody(request)) as PermissionMutationInput;
     const updated = await grantRolePermissionService(actor, roleId, body);
@@ -31,6 +33,7 @@ export async function POST(request: Request, context: RouteContext) {
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const actor = await requireActiveUser();
+    await enforceApiWriteRateLimit(actor.userId);
     const { roleId } = await context.params;
     const body = (await parseJsonBody(request)) as ToggleRolePermissionInput;
     const updated = await toggleRolePermissionService(actor, roleId, body);
@@ -43,6 +46,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
     const actor = await requireActiveUser();
+    await enforceApiWriteRateLimit(actor.userId);
     const { roleId } = await context.params;
     const permissionId = request.nextUrl.searchParams.get("permissionId")?.trim() || undefined;
     const permissionCode = request.nextUrl.searchParams.get("permissionCode")?.trim() || undefined;

@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { DocumentCategory, ProjectStatus } from "@prisma/client";
 import { toast } from "sonner";
 import { UrlPaginationControls } from "@/components/shared/url-pagination-controls";
+import { sanitizeGoogleDriveReadUrl } from "@/lib/safe-url";
 import { buildUpdatedQueryUrl } from "@/lib/search-params";
 import { usePropSyncedState } from "@/lib/use-prop-synced-state";
 import {
@@ -264,7 +265,7 @@ export function DocumentLibraryClient({
         const q = searchTerm.trim().toLowerCase();
         const matchTitle = doc.title.toLowerCase().includes(q);
         const matchDesc = doc.description?.toLowerCase().includes(q) ?? false;
-        const matchUrl = doc.url.toLowerCase().includes(q);
+        const matchUrl = (doc.url ?? "").toLowerCase().includes(q);
         const matchProject = doc.project.name.toLowerCase().includes(q);
         if (!matchTitle && !matchDesc && !matchUrl && !matchProject) {
           return false;
@@ -295,7 +296,7 @@ export function DocumentLibraryClient({
     setEditingDoc(doc);
     setFormProjectId(doc.projectId);
     setFormTitle(doc.title);
-    setFormUrl(doc.url);
+    setFormUrl(doc.url ?? "");
     setFormCategory(doc.category);
     setFormSprintId(doc.sprintId ?? "NONE");
     setFormDescription(doc.description ?? "");
@@ -532,18 +533,28 @@ export function DocumentLibraryClient({
                 <TableBody>
                   {filteredDocuments.map((doc) => {
                     const rowManageable = canManageDocumentRow(doc);
+                    const safeDocUrl = sanitizeGoogleDriveReadUrl(doc.url);
                     return (
                       <TableRow key={doc.id}>
                         <TableCell className="max-w-xs space-y-1">
-                          <a
-                            href={doc.url}
-                            target="_blank"
-                            rel="noreferrer noopener"
-                            className="inline-flex items-center gap-1.5 font-medium text-slate-900 hover:text-primary hover:underline"
-                          >
-                            <span>{doc.title}</span>
-                            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                          </a>
+                          {safeDocUrl ? (
+                            <a
+                              href={safeDocUrl}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              className="inline-flex items-center gap-1.5 font-medium text-slate-900 hover:text-primary hover:underline"
+                            >
+                              <span>{doc.title}</span>
+                              <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            </a>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 font-medium text-slate-900">
+                              <span>{doc.title}</span>
+                              <Badge variant="outline" className="text-[10px]">
+                                Liên kết không hợp lệ
+                              </Badge>
+                            </span>
+                          )}
                           {doc.description && (
                             <p className="line-clamp-2 text-xs text-muted-foreground">
                               {doc.description}
@@ -596,17 +607,19 @@ export function DocumentLibraryClient({
 
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <Button asChild variant="ghost" size="sm">
-                              <a
-                                href={doc.url}
-                                target="_blank"
-                                rel="noreferrer noopener"
-                                title="Mở trên Google Drive / Docs"
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                                <span className="sr-only">Mở liên kết</span>
-                              </a>
-                            </Button>
+                            {safeDocUrl && (
+                              <Button asChild variant="ghost" size="sm">
+                                <a
+                                  href={safeDocUrl}
+                                  target="_blank"
+                                  rel="noreferrer noopener"
+                                  title="Mở trên Google Drive / Docs"
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                  <span className="sr-only">Mở liên kết</span>
+                                </a>
+                              </Button>
+                            )}
 
                             {rowManageable && (
                               <>

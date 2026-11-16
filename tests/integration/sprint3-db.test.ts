@@ -386,10 +386,10 @@ describe("Sprint 3 PostgreSQL Integration Tests", () => {
       expect(approved.reviews).toHaveLength(2);
       expect(approved.reviews[0].decision).toBe(ReviewDecision.APPROVED);
 
-      // OQ-05: DONE is terminal
+      // OQ-05 / SEC-08: DONE is terminal and strictly read-only
       await expect(
         updateTaskStatusService(leaderActor, task.id, TaskStatus.IN_PROGRESS)
-      ).rejects.toMatchObject({ statusCode: 409, code: "INVALID_STATUS_TRANSITION" });
+      ).rejects.toMatchObject({ statusCode: 409, code: "TASK_ALREADY_COMPLETED" });
 
       // History readability for Instructor (OQ-07)
       const history = await listTaskHistoryService(instructorActor, task.id, {
@@ -490,10 +490,10 @@ describe("Sprint 3 PostgreSQL Integration Tests", () => {
     });
     expect(approvedB.status).toBe(TaskStatus.DONE);
 
-    // Cannot attach incomplete Task C as predecessor of DONE Task B
+    // SEC-08: DONE Task B is strictly read-only and rejects adding dependencies
     await expect(
       addTaskDependencyService(leaderActor, taskB.id, { dependsOnTaskId: taskC.id })
-    ).rejects.toMatchObject({ statusCode: 409, code: "TASK_DEPENDENCY_NOT_COMPLETED" });
+    ).rejects.toMatchObject({ statusCode: 409, code: "TASK_ALREADY_COMPLETED" });
 
     // Remove dependency cleanly
     const depsAfterRemove = await removeTaskDependencyService(leaderActor, taskD.id, taskC.id);
@@ -544,7 +544,9 @@ describe("Sprint 3 PostgreSQL Integration Tests", () => {
     );
     expect(reviewSuccesses).toHaveLength(1);
     expect(reviewFailures).toHaveLength(1);
-    expect((reviewFailures[0].reason as AppError).code).toBe("INVALID_STATUS_TRANSITION");
+    expect(["TASK_ALREADY_COMPLETED", "INVALID_STATUS_TRANSITION"]).toContain(
+      (reviewFailures[0].reason as AppError).code
+    );
 
     const reviewRows = await prisma.taskReview.count({ where: { taskId: task1.id } });
     expect(reviewRows).toBe(1);

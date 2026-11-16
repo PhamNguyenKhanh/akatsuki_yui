@@ -51,6 +51,7 @@ test.describe("Workflow F, G & H — Docs, Notifications, Offline Mock SMTP, Rep
       status: UserStatus.ACTIVE,
     });
     createdUserIds.push(admin.id, leader.id, member.id);
+    await prisma.smtpQuotaAttempt.deleteMany({});
   });
 
   test.afterAll(async () => {
@@ -58,6 +59,7 @@ test.describe("Workflow F, G & H — Docs, Notifications, Offline Mock SMTP, Rep
       await mockSmtp.close();
       mockSmtp = null;
     }
+    await prisma.smtpQuotaAttempt.deleteMany({});
     await cleanupE2EByRunTag(prisma, runTag, createdUserIds, createdProjectIds);
     await prisma.$disconnect();
   });
@@ -142,7 +144,7 @@ test.describe("Workflow F, G & H — Docs, Notifications, Offline Mock SMTP, Rep
     const taskRes = await adminPage.request.post(`/api/v1/projects/${projectId}/tasks`, {
       data: {
         title: `${runTag} Urgent Task Due Soon`,
-        priority: "URGENT",
+        priority: "CRITICAL",
         deadline: deadlineSoon,
         estimateHours: 6,
         assigneeIds: [memberUser.id],

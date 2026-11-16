@@ -9,6 +9,7 @@ import {
   type UserStatus,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { sanitizeExternalHttpUrl } from "@/lib/safe-url";
 import { formatTaskCode, type ParsedTaskListQuery } from "@/modules/tasks/task.schema";
 
 export interface TaskSprintRefDTO {
@@ -164,7 +165,10 @@ export interface ProjectTaskOptionDTO {
 
 export function mapReferenceLinks(value: Prisma.JsonValue | null | undefined): string[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === "string");
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => sanitizeExternalHttpUrl(item))
+    .filter((item): item is string => item !== null);
 }
 
 export function computeIsTaskOverdue(

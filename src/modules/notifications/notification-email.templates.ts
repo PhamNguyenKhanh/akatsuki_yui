@@ -1,5 +1,6 @@
 import "server-only";
 import { NotificationType } from "@prisma/client";
+import { resolveSafeNotificationTargetUrl } from "@/lib/safe-url";
 
 function escapeHtml(value: string): string {
   return value
@@ -48,12 +49,7 @@ export function buildNotificationEmailContent(
     "http://localhost:3000"
   ).replace(/\/+$/, "");
 
-  const fullActionUrl =
-    input.targetUrl && input.targetUrl.trim().length > 0
-      ? input.targetUrl.startsWith("http")
-        ? input.targetUrl
-        : `${baseUrl}${input.targetUrl.startsWith("/") ? "" : "/"}${input.targetUrl}`
-      : null;
+  const fullActionUrl = resolveSafeNotificationTargetUrl(input.targetUrl, baseUrl);
 
   const badgeLabel = TYPE_BADGE_LABELS[input.type] ?? "Thông báo";
   const subject = `[Akatsuki Yui] ${input.title}`;

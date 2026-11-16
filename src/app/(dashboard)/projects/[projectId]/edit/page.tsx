@@ -11,8 +11,11 @@ import { PERMISSIONS } from "@/modules/authorization/constants";
 import { requirePermissionOrRedirect } from "@/modules/authorization/require-auth";
 import { projectTemplateRepository } from "@/modules/project-templates/template.repository";
 import { isWorkspaceAdmin } from "@/modules/projects/project.access";
-import { projectRepository, type ProjectDTO } from "@/modules/projects/project.repository";
-import { getProjectDetailService } from "@/modules/projects/project.service";
+import type { ProjectDTO } from "@/modules/projects/project.repository";
+import {
+  getProjectDetailService,
+  listProjectUserCandidatesService,
+} from "@/modules/projects/project.service";
 
 export const metadata: Metadata = {
   title: "Chỉnh sửa Project",
@@ -42,10 +45,18 @@ export default async function EditProjectPage({ params }: EditProjectPageProps) 
     redirect("/access-denied?reason=forbidden");
   }
 
-  const [templates, userOptions] = await Promise.all([
+  const [templates, fetchedInstructorOptions] = await Promise.all([
     projectTemplateRepository.findActiveOptions(),
-    projectRepository.findActiveUserCandidates(),
+    listProjectUserCandidatesService(actor, { kind: "instructor", projectId: project.id }),
   ]);
+
+  const instructorOptions =
+    project.instructor && !fetchedInstructorOptions.some((u) => u.id === project.instructor!.id)
+      ? [
+          { id: project.instructor.id, fullName: project.instructor.fullName },
+          ...fetchedInstructorOptions,
+        ]
+      : fetchedInstructorOptions;
 
   return (
     <div className="space-y-6">
@@ -79,8 +90,11 @@ export default async function EditProjectPage({ params }: EditProjectPageProps) 
           mode="edit"
           initialProject={project}
           templates={templates}
-          userOptions={userOptions}
+          instructorOptions={instructorOptions}
+          leaderOptions={[]}
+          memberOptions={[]}
           currentUserId={actor.userId}
+          currentUserName={actor.fullName}
           isAdminCreator={isAdmin}
         />
       )}

@@ -87,6 +87,7 @@ vi.mock("@/modules/notifications/notification-deadline.service", () => ({
 
 vi.mock("@/lib/rate-limit", () => ({
   cleanupExpiredRateLimitEventsBatch: vi.fn().mockResolvedValue(0),
+  enforceApiWriteRateLimit: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { GET as globalDocumentsGet } from "@/app/api/v1/documents/route";

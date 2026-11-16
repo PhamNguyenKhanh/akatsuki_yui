@@ -147,7 +147,22 @@ describe("Sprint 5 — Notifications, Retry Backoff, Deadline Reminder & Cron Un
       expect(createdNotifications[0]).toMatchObject({
         type: NotificationType.ACCOUNT_REJECTED,
         userId: USER_B_ID,
+        title: "Thông báo kết quả đăng ký tài khoản Rejected Candidate trên Akatsuki Yui",
         targetUrl: null,
+      });
+
+      const approvedHandles = await recordAccountStatusDecisionNotifications(tx, {
+        actorId: ACTOR_ID,
+        targetUserId: USER_A_ID,
+        targetUserEmail: "usera@akatsuki.local",
+        targetUserFullName: "Phạm Nguyên Khánh",
+        action: "APPROVE",
+      });
+      expect(approvedHandles).toHaveLength(1);
+      expect(createdNotifications[1]).toMatchObject({
+        type: NotificationType.ACCOUNT_APPROVED,
+        userId: USER_A_ID,
+        title: "Tài khoản Phạm Nguyên Khánh của bạn đã được phê duyệt",
       });
 
       const suspendHandles = await recordAccountStatusDecisionNotifications(tx, {

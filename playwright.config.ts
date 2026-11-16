@@ -1,8 +1,7 @@
-import { config as loadDotenv } from "dotenv";
 import { defineConfig, devices } from "@playwright/test";
-import { validateTestDatabaseIsolation } from "./tests/lib/test-db-isolation";
+import { loadTestEnvFiles, validateTestDatabaseIsolation } from "./tests/lib/test-db-isolation";
 
-loadDotenv({ quiet: true });
+loadTestEnvFiles();
 
 const isListOnlyCommand = process.argv.includes("--list");
 const E2E_PORT = Number(process.env.E2E_PORT || "3100");

@@ -1,4 +1,5 @@
 import { apiError, apiSuccess } from "@/lib/api-response";
+import { enforceApiWriteRateLimit } from "@/lib/rate-limit";
 import { parseJsonBody } from "@/lib/request";
 import { requireActiveUser } from "@/modules/authorization/require-auth";
 import type { UpdateProjectTemplateInput } from "@/modules/project-templates/template.schema";
@@ -26,6 +27,7 @@ export async function GET(_request: Request, context: RouteContext) {
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const actor = await requireActiveUser();
+    await enforceApiWriteRateLimit(actor.userId);
     const { templateId } = await context.params;
     const body = (await parseJsonBody(request)) as UpdateProjectTemplateInput;
     const updated = await updateProjectTemplateService(actor, templateId, body);
@@ -38,6 +40,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 export async function DELETE(_request: Request, context: RouteContext) {
   try {
     const actor = await requireActiveUser();
+    await enforceApiWriteRateLimit(actor.userId);
     const { templateId } = await context.params;
     const result = await deleteProjectTemplateService(actor, templateId);
     return apiSuccess(result);

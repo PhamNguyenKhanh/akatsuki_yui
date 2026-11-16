@@ -1,8 +1,12 @@
 import "server-only";
 import { Prisma, ProjectStatus, UserStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { sanitizeExternalHttpUrl } from "@/lib/safe-url";
 import { ROLES, type RoleName } from "@/modules/authorization/constants";
-import type { ProjectListQueryInput } from "@/modules/projects/project.schema";
+import type {
+  ProjectCandidateKind,
+  ProjectListQueryInput,
+} from "@/modules/projects/project.schema";
 
 export interface ProjectUserSummaryDTO {
   id: string;
@@ -40,11 +44,9 @@ export interface ProjectDTO {
   updatedAt: string;
 }
 
-export interface SelectableUserOptionDTO {
+export interface ProjectCandidateUserDTO {
   id: string;
   fullName: string;
-  email: string;
-  roles: RoleName[];
 }
 
 const userSummarySelect = {
@@ -113,7 +115,7 @@ export function mapProjectToDTO(record: ProjectRecord): ProjectDTO {
     startDate: record.startDate.toISOString(),
     endDate: record.endDate.toISOString(),
     status: record.status,
-    repositoryUrl: record.repositoryUrl,
+    repositoryUrl: sanitizeExternalHttpUrl(record.repositoryUrl),
     technologies,
     templateId: record.templateId,
     template: record.template,
@@ -199,30 +201,56 @@ export const projectRepository = {
     });
   },
 
-  async findActiveUserCandidates(): Promise<SelectableUserOptionDTO[]> {
-    const users = await prisma.user.findMany({
-      where: { status: UserStatus.ACTIVE },
+  async findProjectUserCandidates(params: {
+    kind: ProjectCandidateKind;
+    search?: string;
+    excludeUserIds?: string[];
+    take?: number;
+  }): Promise<ProjectCandidateUserDTO[]> {
+    const limit = Math.max(1, Math.min(50, params.take ?? 25));
+
+    const roleFilter: Prisma.UserWhereInput =
+      params.kind === "instructor"
+        ? {
+            userRoles: {
+              some: {
+                role: { name: ROLES.INSTRUCTOR },
+              },
+            },
+          }
+        : params.kind === "leader"
+          ? {
+              userRoles: {
+                some: {
+                  role: { name: { in: [ROLES.LEADER, ROLES.ADMIN] } },
+                },
+              },
+            }
+          : {};
+
+    return prisma.user.findMany({
+      where: {
+        status: UserStatus.ACTIVE,
+        ...roleFilter,
+        ...(params.excludeUserIds && params.excludeUserIds.length > 0
+          ? { id: { notIn: params.excludeUserIds } }
+          : {}),
+        ...(params.search
+          ? {
+              fullName: {
+                contains: params.search,
+                mode: "insensitive",
+              },
+            }
+          : {}),
+      },
       select: {
         id: true,
         fullName: true,
-        email: true,
-        userRoles: {
-          select: {
-            role: {
-              select: { name: true },
-            },
-          },
-        },
       },
       orderBy: { fullName: "asc" },
+      take: limit,
     });
-
-    return users.map((user) => ({
-      id: user.id,
-      fullName: user.fullName,
-      email: user.email,
-      roles: user.userRoles.map((ur) => ur.role.name as RoleName),
-    }));
   },
 
   async getDashboardProjectStats(scope: { adminViewAll: boolean; userId: string }) {

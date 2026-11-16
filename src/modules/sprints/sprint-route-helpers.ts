@@ -1,4 +1,4 @@
-import { badRequestError } from "@/lib/errors";
+export { parseOptionalJsonBody } from "@/lib/request";
 
 export function extractSearchParams(request: Request): Record<string, string> {
   const maybeNextRequest = request as Request & {
@@ -28,17 +28,4 @@ export function normalizePageSearchParams(
     }
   }
   return rawQuery;
-}
-
-export async function parseOptionalJsonBody(request: Request): Promise<unknown> {
-  const rawText = await request.text();
-  if (!rawText || rawText.trim().length === 0) {
-    return {};
-  }
-
-  try {
-    return JSON.parse(rawText);
-  } catch {
-    throw badRequestError("Payload JSON không hợp lệ.");
-  }
 }

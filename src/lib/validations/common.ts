@@ -2,12 +2,80 @@ import { z } from "zod";
 
 export const uuidSchema = z.string().uuid("ID không đúng định dạng UUID.");
 
+const STRICT_EMAIL_FORBIDDEN_CHARS = /[\u0000-\u001F\u007F\s,;<>'"\\():]/;
+const DOMAIN_LABEL_REGEX = /^[A-Za-z0-9-]+$/;
+
+/**
+ * Strict single-recipient email address check:
+ * - Rejects display-name syntax ("Name <user@host>"), comma/semicolon lists, quotes, control chars/CRLF
+ * - Validates RFC 5321 lengths (total <= 254, local <= 64, domain <= 253) and label syntax
+ */
+export function isStrictSingleEmailAddress(rawValue: string): boolean {
+  if (typeof rawValue !== "string") return false;
+  const trimmed = rawValue.trim();
+  if (!trimmed || trimmed.length > 254 || STRICT_EMAIL_FORBIDDEN_CHARS.test(trimmed)) {
+    return false;
+  }
+
+  const atIndex = trimmed.indexOf("@");
+  if (atIndex <= 0 || trimmed.indexOf("@", atIndex + 1) !== -1) {
+    return false;
+  }
+
+  const localPart = trimmed.slice(0, atIndex);
+  const domainPart = trimmed.slice(atIndex + 1);
+
+  if (
+    localPart.length > 64 ||
+    localPart.startsWith(".") ||
+    localPart.endsWith(".") ||
+    localPart.includes("..")
+  ) {
+    return false;
+  }
+
+  if (
+    domainPart.length < 3 ||
+    domainPart.length > 253 ||
+    domainPart.startsWith(".") ||
+    domainPart.endsWith(".") ||
+    domainPart.includes("..") ||
+    !domainPart.includes(".")
+  ) {
+    return false;
+  }
+
+  const labels = domainPart.split(".");
+  if (
+    labels.some(
+      (label) =>
+        label.length === 0 ||
+        label.length > 63 ||
+        label.startsWith("-") ||
+        label.endsWith("-") ||
+        !DOMAIN_LABEL_REGEX.test(label)
+    )
+  ) {
+    return false;
+  }
+
+  const tld = labels[labels.length - 1] ?? "";
+  if (tld.length < 2 || /^\d+$/.test(tld)) {
+    return false;
+  }
+
+  return z.string().email().safeParse(trimmed).success;
+}
+
 export const emailSchema = z
   .string()
   .trim()
   .min(1, "Vui lòng nhập Email.")
-  .max(255, "Email không được vượt quá 255 ký tự.")
+  .max(254, "Email không được vượt quá 254 ký tự.")
   .email("Email không đúng định dạng.")
+  .refine(isStrictSingleEmailAddress, {
+    message: "Email không đúng định dạng địa chỉ hợp lệ.",
+  })
   .transform((value) => value.toLowerCase());
 
 export const fullNameSchema = z
@@ -46,17 +114,4 @@ export const paginationQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(50).default(10),
 });
 
-export function isSafeHttpUrl(rawUrl: string): boolean {
-  try {
-    const parsed = new URL(rawUrl);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return false;
-    }
-    if (parsed.username || parsed.password) {
-      return false;
-    }
-    return parsed.hostname.length > 0;
-  } catch {
-    return false;
-  }
-}
+export { isSafeHttpUrl } from "@/lib/safe-url";

@@ -66,7 +66,7 @@ test.describe("Workflow A & B — Auth, Pending Approval, Session Revocation & L
     await publicPage.locator("#email").fill(pendingEmail);
     await publicPage.locator("#password").fill(password);
     await publicPage.locator("#confirmPassword").fill(password);
-    await publicPage.getByRole("button", { name: "Đăng ký tài khoản" }).click();
+    await publicPage.getByRole("button", { name: "Tạo tài khoản" }).click();
     await publicPage.waitForURL(/\/pending-approval/);
 
     // Attempt login while PENDING
@@ -82,7 +82,7 @@ test.describe("Workflow A & B — Auth, Pending Approval, Session Revocation & L
     await publicPage.locator("#email").fill(rejectedEmail);
     await publicPage.locator("#password").fill(password);
     await publicPage.locator("#confirmPassword").fill(password);
-    await publicPage.getByRole("button", { name: "Đăng ký tài khoản" }).click();
+    await publicPage.getByRole("button", { name: "Tạo tài khoản" }).click();
     await publicPage.waitForURL(/\/pending-approval/);
 
     // 2. Admin approves user A & rejects user B via /admin/users
@@ -95,23 +95,23 @@ test.describe("Workflow A & B — Auth, Pending Approval, Session Revocation & L
     });
     await adminPage.goto(`/admin/users/${approvedUser.id}`);
     await adminPage.getByRole("button", { name: "Phê duyệt" }).click();
-    await adminPage.getByRole("button", { name: "Phê duyệt" }).last().click();
-    await expect(adminPage.getByText("ACTIVE").first()).toBeVisible();
+    await adminPage.getByRole("button", { name: "Xác nhận" }).click();
+    await expect(adminPage.getByText("Hoạt động").first()).toBeVisible();
 
     const rejectedUser = await prisma.user.findUniqueOrThrow({
       where: { email: rejectedEmail.toLowerCase() },
     });
     await adminPage.goto(`/admin/users/${rejectedUser.id}`);
     await adminPage.getByRole("button", { name: "Từ chối" }).click();
-    await adminPage.getByRole("button", { name: "Từ chối" }).last().click();
-    await expect(adminPage.getByText("REJECTED").first()).toBeVisible();
+    await adminPage.getByRole("button", { name: "Xác nhận" }).click();
+    await expect(adminPage.getByText("Đã từ chối").first()).toBeVisible();
 
     // Verify REJECTED user cannot login
     await publicPage.goto("/login");
     await publicPage.locator("#email").fill(rejectedEmail);
     await publicPage.locator("#password").fill(password);
     await publicPage.getByRole("button", { name: "Đăng nhập" }).click();
-    await expect(publicPage.getByText("Tài khoản đã bị từ chối")).toBeVisible();
+    await expect(publicPage.getByText("Tài khoản đã bị từ chối").first()).toBeVisible();
     await publicContext.close();
 
     // 3. Approved user logs into 2 browser contexts (Session 1 and Session 2)
@@ -138,15 +138,15 @@ test.describe("Workflow A & B — Auth, Pending Approval, Session Revocation & L
     // 4. Admin suspends user -> Session 1 invalidated immediately, then reactivated session cannot reuse old cookie
     await adminPage.goto(`/admin/users/${approvedUser.id}`);
     await adminPage.getByRole("button", { name: "Tạm khóa" }).click();
-    await adminPage.getByRole("button", { name: "Tạm khóa" }).last().click();
-    await expect(adminPage.getByText("SUSPENDED").first()).toBeVisible();
+    await adminPage.getByRole("button", { name: "Xác nhận" }).click();
+    await expect(adminPage.getByText("Tạm khóa").first()).toBeVisible();
 
     await userPage1.goto("/projects");
     await userPage1.waitForURL(/\/login/);
 
     await adminPage.getByRole("button", { name: "Kích hoạt" }).click();
-    await adminPage.getByRole("button", { name: "Kích hoạt" }).last().click();
-    await expect(adminPage.getByText("ACTIVE").first()).toBeVisible();
+    await adminPage.getByRole("button", { name: "Xác nhận" }).click();
+    await expect(adminPage.getByText("Hoạt động").first()).toBeVisible();
 
     await userPage1.goto("/dashboard");
     await userPage1.waitForURL(/\/login/);
@@ -185,13 +185,18 @@ test.describe("Workflow A & B — Auth, Pending Approval, Session Revocation & L
 
     await adminContext.close();
 
-    // 2. LEADER is blocked (403) from template management endpoints
+    // 2. LEADER is blocked (403) from template management endpoints (POST requires PROJECT_TEMPLATE_MANAGE)
     const leaderContext = await browser.newContext();
     const leaderPage = await leaderContext.newPage();
     await uiLogin(leaderPage, leaderEmail, password);
 
-    const templateRes = await leaderPage.request.get("/api/v1/project-templates");
-    expect(templateRes.status()).toBe(403);
+    const templateGetRes = await leaderPage.request.get("/api/v1/project-templates");
+    expect(templateGetRes.status()).toBe(200);
+
+    const templateCreateRes = await leaderPage.request.post("/api/v1/project-templates", {
+      data: { name: "Forbidden Leader Template" },
+    });
+    expect(templateCreateRes.status()).toBe(403);
 
     await leaderPage.goto("/admin/templates");
     await expect(leaderPage).toHaveURL(/\/access-denied|\/dashboard|\/login/);
