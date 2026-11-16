@@ -4,6 +4,7 @@ import { DOCUMENT_CATEGORY_LABELS } from "@/components/features/documents/docume
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { sanitizeGoogleDriveReadUrl } from "@/lib/safe-url";
 import type { DocumentDTO } from "@/modules/documents/document.types";
 
 interface ProjectDocumentSummaryCardProps {
@@ -47,29 +48,51 @@ export function ProjectDocumentSummaryCard({
           </p>
         ) : (
           <div className="grid gap-3 md:grid-cols-3">
-            {recentDocs.map((doc) => (
-              <a
-                key={doc.id}
-                href={doc.url}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="block space-y-2 rounded-lg border border-border bg-muted/20 p-3 transition hover:border-slate-400"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="line-clamp-1 font-medium text-slate-900">{doc.title}</span>
-                  <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <Badge variant="outline" className="text-xs">
-                    {DOCUMENT_CATEGORY_LABELS[doc.category]}
-                  </Badge>
-                  {doc.sprint && (
-                    <span className="text-xs text-muted-foreground">· {doc.sprint.name}</span>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">Đăng bởi {doc.uploadedBy.fullName}</p>
-              </a>
-            ))}
+            {recentDocs.map((doc) => {
+              const safeDocUrl = sanitizeGoogleDriveReadUrl(doc.url);
+              const cardContent = (
+                <>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="line-clamp-1 font-medium text-slate-900">{doc.title}</span>
+                    {safeDocUrl && <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge variant="outline" className="text-xs">
+                      {DOCUMENT_CATEGORY_LABELS[doc.category]}
+                    </Badge>
+                    {doc.sprint && (
+                      <span className="text-xs text-muted-foreground">· {doc.sprint.name}</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Đăng bởi {doc.uploadedBy.fullName}
+                  </p>
+                </>
+              );
+
+              if (!safeDocUrl) {
+                return (
+                  <div
+                    key={doc.id}
+                    className="block space-y-2 rounded-lg border border-border bg-muted/20 p-3 opacity-80"
+                  >
+                    {cardContent}
+                  </div>
+                );
+              }
+
+              return (
+                <a
+                  key={doc.id}
+                  href={safeDocUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="block space-y-2 rounded-lg border border-border bg-muted/20 p-3 transition hover:border-slate-400"
+                >
+                  {cardContent}
+                </a>
+              );
+            })}
           </div>
         )}
       </CardContent>

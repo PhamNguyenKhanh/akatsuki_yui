@@ -7,6 +7,7 @@ import { Bell, CheckCheck, ExternalLink, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { sanitizeInternalTargetPath } from "@/lib/safe-url";
 import { cn } from "@/lib/utils";
 import { usePropSyncedState } from "@/lib/use-prop-synced-state";
 import {
@@ -76,8 +77,9 @@ export function NotificationBell({ initialUnreadCount = 0 }: { initialUnreadCoun
       await markNotificationReadStateAction(item.id, true);
     }
     setOpen(false);
-    if (item.targetUrl) {
-      router.push(item.targetUrl);
+    const safeTargetUrl = sanitizeInternalTargetPath(item.targetUrl);
+    if (safeTargetUrl) {
+      router.push(safeTargetUrl);
     } else {
       router.push("/notifications");
     }
@@ -197,7 +199,7 @@ export function NotificationBell({ initialUnreadCount = 0 }: { initialUnreadCoun
                   <p className="line-clamp-2 text-xs text-muted-foreground">{item.message}</p>
                   <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                     <span>{formatShortTime(item.createdAt)}</span>
-                    {item.targetUrl && (
+                    {sanitizeInternalTargetPath(item.targetUrl) && (
                       <span className="inline-flex items-center gap-0.5 text-slate-600">
                         <span>Xem chi tiết</span>
                         <ExternalLink className="h-3 w-3" />

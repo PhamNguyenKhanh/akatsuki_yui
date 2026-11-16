@@ -29,6 +29,7 @@ import {
 } from "@/modules/tasks/task.repository";
 import {
   assertProjectNotArchivedForTaskMutation,
+  assertTaskNotDoneForMutation,
   assertTaskProgressOrReviewActorAccess,
   assertTaskReadAccess,
   parseTaskId,
@@ -274,7 +275,9 @@ export async function updateTaskService(
   const rawRecord = rawInput as Record<string, unknown>;
 
   return prisma.$transaction(async (tx) => {
-    const access = await assertTaskProgressOrReviewActorAccess(actor, validTaskId, tx);
+    const access = await assertTaskProgressOrReviewActorAccess(actor, validTaskId, tx, {
+      lockForMutation: true,
+    });
     assertProjectNotArchivedForTaskMutation(access.project.status);
 
     // DEC-015: Assigned Members cannot mutate Leader-only metadata fields (strict 403, never silent strip).
@@ -287,6 +290,8 @@ export async function updateTaskService(
         }
       }
     }
+
+    assertTaskNotDoneForMutation(access.task.status);
 
     const parsed = updateTaskSchema.safeParse(rawInput);
     if (!parsed.success) {

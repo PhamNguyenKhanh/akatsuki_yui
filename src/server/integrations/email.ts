@@ -1,6 +1,7 @@
 import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
 import { getSmtpConfigFromEnv, type SmtpRuntimeConfig } from "@/lib/env";
+import { isStrictSingleEmailAddress } from "@/lib/validations/common";
 
 export const EMAIL_PROVIDER_NAME = "SMTP" as const;
 export const SMTP_CONNECTION_TIMEOUT_MS = 4000;
@@ -229,7 +230,7 @@ export function createSmtpTransporter(config: SmtpRuntimeConfig): Transporter {
 
 function validateSingleRecipientAddress(rawTo: string): string | null {
   const trimmed = rawTo.trim();
-  if (!trimmed || trimmed.includes(",") || trimmed.includes(";") || /[\r\n]/.test(trimmed)) {
+  if (!isStrictSingleEmailAddress(trimmed)) {
     return null;
   }
   return trimmed;

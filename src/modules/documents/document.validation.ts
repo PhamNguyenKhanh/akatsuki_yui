@@ -1,78 +1,13 @@
 import { DocumentCategory } from "@prisma/client";
 import { z } from "zod";
+import {
+  ALLOWED_GOOGLE_DRIVE_HOSTS,
+  type GoogleDriveUrlValidationResult,
+  validateGoogleDriveUrl,
+} from "@/lib/safe-url";
 import { uuidSchema } from "@/lib/validations/common";
 
-export const ALLOWED_GOOGLE_DRIVE_HOSTS = new Set(["drive.google.com", "docs.google.com"]);
-
-export interface GoogleDriveUrlValidationResult {
-  valid: boolean;
-  normalizedUrl?: string;
-  reason?: string;
-}
-
-/**
- * Validates that a URL is a legitimate HTTPS Google Drive or Google Docs link (DEC-035).
- * Rejects http:, embedded credentials, lookalike domains, subdomains, and bare root URLs.
- */
-export function validateGoogleDriveUrl(rawUrl: string): GoogleDriveUrlValidationResult {
-  const trimmed = rawUrl.trim();
-  if (!trimmed) {
-    return { valid: false, reason: "URL tài liệu không được để trống." };
-  }
-  if (trimmed.length > 1000) {
-    return { valid: false, reason: "URL tài liệu không được vượt quá 1000 ký tự." };
-  }
-
-  let parsed: URL;
-  try {
-    parsed = new URL(trimmed);
-  } catch {
-    return { valid: false, reason: "URL tài liệu không đúng định dạng hợp lệ." };
-  }
-
-  if (parsed.protocol !== "https:") {
-    return {
-      valid: false,
-      reason: "Chỉ chấp nhận liên kết Google Drive / Google Docs sử dụng giao thức HTTPS.",
-    };
-  }
-
-  if (parsed.username || parsed.password) {
-    return {
-      valid: false,
-      reason: "URL tài liệu không được chứa thông tin xác thực (username/password).",
-    };
-  }
-
-  const hostname = parsed.hostname.toLowerCase();
-  if (!ALLOWED_GOOGLE_DRIVE_HOSTS.has(hostname)) {
-    return {
-      valid: false,
-      reason:
-        "Chỉ chấp nhận liên kết từ tên miền chính thức https://drive.google.com hoặc https://docs.google.com.",
-    };
-  }
-
-  if (parsed.port && parsed.port !== "443") {
-    return {
-      valid: false,
-      reason: "URL tài liệu không được sử dụng cổng mạng tùy chỉnh.",
-    };
-  }
-
-  const cleanPath = parsed.pathname.replace(/\/+$/, "");
-  if (!cleanPath || cleanPath === "") {
-    return {
-      valid: false,
-      reason: "URL phải trỏ tới một tệp, thư mục hoặc tài liệu cụ thể trên Google Drive / Docs.",
-    };
-  }
-
-  return {
-    valid: true,
-    normalizedUrl: trimmed,
-  };
-}
+export { ALLOWED_GOOGLE_DRIVE_HOSTS, validateGoogleDriveUrl, type GoogleDriveUrlValidationResult };
 
 export const googleDriveUrlSchema = z
   .string()

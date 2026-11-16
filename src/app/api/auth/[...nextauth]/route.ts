@@ -1,6 +1,5 @@
 import { apiError } from "@/lib/api-response";
 import { handlers } from "@/lib/auth";
-import { payloadTooLargeError } from "@/lib/errors";
 import {
   RATE_LIMIT_SCOPES,
   checkRateLimit,
@@ -9,28 +8,15 @@ import {
   normalizeRateLimitIdentifier,
   runWithRateLimitContext,
 } from "@/lib/rate-limit";
-import { MAX_JSON_BODY_BYTES } from "@/lib/request";
+import { MAX_JSON_BODY_BYTES, readBoundedUtf8Body } from "@/lib/request";
 
 export const { GET } = handlers;
 
 async function extractCredentialsEmailFromRequest(request: Request): Promise<string> {
   try {
-    const contentLengthHeader = request.headers.get("content-length");
-    if (contentLengthHeader) {
-      const len = Number(contentLengthHeader);
-      if (Number.isFinite(len) && len > MAX_JSON_BODY_BYTES) {
-        throw payloadTooLargeError();
-      }
-    }
-
     const cloned = request.clone();
-    const rawBytes = await cloned.arrayBuffer();
-    if (rawBytes.byteLength > MAX_JSON_BODY_BYTES) {
-      throw payloadTooLargeError();
-    }
-
     const contentType = cloned.headers.get("content-type")?.toLowerCase() ?? "";
-    const text = new TextDecoder("utf-8", { fatal: false }).decode(rawBytes);
+    const text = await readBoundedUtf8Body(cloned, MAX_JSON_BODY_BYTES);
 
     if (contentType.includes("application/json")) {
       const parsed = JSON.parse(text) as { email?: unknown };

@@ -1,6 +1,7 @@
 import "server-only";
 import { type Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { sanitizeGoogleDriveReadUrl } from "@/lib/safe-url";
 import type { DocumentDTO, DocumentListResponseDTO } from "@/modules/documents/document.types";
 import type { ParsedDocumentListQuery } from "@/modules/documents/document.validation";
 
@@ -52,7 +53,7 @@ export function mapDocumentToDTO(record: DocumentRecord): DocumentDTO {
     sprintId: record.sprintId,
     uploadedById: record.uploadedById,
     title: record.title,
-    url: record.url,
+    url: sanitizeGoogleDriveReadUrl(record.url),
     category: record.category,
     description: record.description,
     createdAt: record.createdAt.toISOString(),

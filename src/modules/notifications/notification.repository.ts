@@ -1,6 +1,7 @@
 import "server-only";
 import { NotificationChannel, NotificationDeliveryStatus, type Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { sanitizeInternalTargetPath } from "@/lib/safe-url";
 import type {
   NotificationDeliveryDTO,
   NotificationDeliveryListResponseDTO,
@@ -102,7 +103,7 @@ export function mapNotificationToDTO(record: NotificationRecord): NotificationDT
     type: record.type,
     title: record.title,
     message: record.message,
-    targetUrl: record.targetUrl,
+    targetUrl: sanitizeInternalTargetPath(record.targetUrl),
     entityType: record.entityType,
     entityId: record.entityId,
     metadata:
@@ -172,7 +173,7 @@ export function mapNotificationDeliveryToDTO(
       type: record.notification.type,
       title: record.notification.title,
       message: record.notification.message,
-      targetUrl: record.notification.targetUrl,
+      targetUrl: sanitizeInternalTargetPath(record.notification.targetUrl),
       entityType: record.notification.entityType,
       entityId: record.notification.entityId,
       createdAt: record.notification.createdAt.toISOString(),

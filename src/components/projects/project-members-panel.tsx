@@ -23,6 +23,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -45,7 +46,8 @@ import {
   removeProjectMemberAction,
 } from "@/modules/project-members/member.actions";
 import type { ProjectMemberDTO } from "@/modules/project-members/member.repository";
-import type { SelectableUserOptionDTO } from "@/modules/projects/project.repository";
+import { useProjectCandidateSearch } from "@/lib/use-project-candidate-search";
+import type { ProjectCandidateUserDTO } from "@/modules/projects/project.repository";
 
 function formatDateTime(isoString: string): string {
   return new Intl.DateTimeFormat("vi-VN", {
@@ -62,14 +64,16 @@ export function ProjectMembersPanel({
   projectStatus,
   currentLeaderId,
   members,
-  activeUserCandidates,
+  addableUserCandidates,
+  leaderChangeCandidates: initialLeaderCandidates,
   canManageMembers,
 }: {
   projectId: string;
   projectStatus: ProjectStatus;
   currentLeaderId: string;
   members: ProjectMemberDTO[];
-  activeUserCandidates: SelectableUserOptionDTO[];
+  addableUserCandidates: ProjectCandidateUserDTO[];
+  leaderChangeCandidates: ProjectCandidateUserDTO[];
   canManageMembers: boolean;
 }) {
   const router = useRouter();
@@ -91,14 +95,30 @@ export function ProjectMembersPanel({
     [activeMembers]
   );
 
+  const addMemberSearch = useProjectCandidateSearch({
+    initialItems: addableUserCandidates,
+    kind: "member",
+    projectId,
+    excludeCurrentMembers: true,
+    enabled: canManageMembers && !isArchived,
+  });
+
+  const leaderSearch = useProjectCandidateSearch({
+    initialItems: initialLeaderCandidates,
+    kind: "member",
+    projectId,
+    excludeCurrentMembers: false,
+    enabled: canManageMembers && !isArchived,
+  });
+
   const addableUsers = React.useMemo(
-    () => activeUserCandidates.filter((u) => !activeUserIdSet.has(u.id)),
-    [activeUserCandidates, activeUserIdSet]
+    () => addMemberSearch.items.filter((u) => !activeUserIdSet.has(u.id)),
+    [addMemberSearch.items, activeUserIdSet]
   );
 
   const leaderChangeCandidates = React.useMemo(
-    () => activeUserCandidates.filter((u) => u.id !== currentLeaderId),
-    [activeUserCandidates, currentLeaderId]
+    () => leaderSearch.items.filter((u) => u.id !== currentLeaderId),
+    [leaderSearch.items, currentLeaderId]
   );
 
   async function handleAddMember(event: React.FormEvent<HTMLFormElement>) {
@@ -268,11 +288,18 @@ export function ProjectMembersPanel({
                     <SelectContent>
                       {addableUsers.map((user) => (
                         <SelectItem key={user.id} value={user.id}>
-                          {user.fullName} ({user.roles.join(", ")})
+                          {user.fullName}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  <Input
+                    value={addMemberSearch.query}
+                    onChange={(e) => addMemberSearch.setQuery(e.target.value)}
+                    placeholder="Tìm thành viên theo họ tên..."
+                    aria-label="Tìm thành viên thêm vào Project"
+                    className="h-8 text-xs"
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="add-member-role" className="text-xs">
@@ -324,11 +351,18 @@ export function ProjectMembersPanel({
                   <SelectContent>
                     {leaderChangeCandidates.map((user) => (
                       <SelectItem key={user.id} value={user.id}>
-                        {user.fullName} ({user.roles.join(", ")})
+                        {user.fullName}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                <Input
+                  value={leaderSearch.query}
+                  onChange={(e) => leaderSearch.setQuery(e.target.value)}
+                  placeholder="Tìm ứng viên Leader theo họ tên..."
+                  aria-label="Tìm ứng viên Leader mới"
+                  className="h-8 text-xs"
+                />
               </div>
               <AlertDialog>
                 <AlertDialogTrigger asChild>

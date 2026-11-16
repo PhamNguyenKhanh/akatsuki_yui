@@ -5,7 +5,7 @@ import { badRequestError, conflictError, forbiddenError, notFoundError } from "@
 import { logger } from "@/lib/logger";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
-import { RATE_LIMIT_SCOPES, consumeRateLimit, getRequestClientIp } from "@/lib/rate-limit";
+import { RATE_LIMIT_SCOPES, consumeRateLimit } from "@/lib/rate-limit";
 import { PERMISSIONS, ROLES, type RoleName } from "@/modules/authorization/constants";
 import { assertPermission, hasPermission } from "@/modules/authorization/policy.service";
 import { schedulePostCommitEmailDispatch } from "@/modules/notifications/notification-delivery.service";
@@ -337,12 +337,12 @@ export async function updateMyProfileService(
 export async function changeMyPasswordService(
   actor: AuthContext,
   rawPayload: ChangePasswordInput,
-  options?: { headers?: Headers | null }
+  _options?: { headers?: Headers | null }
 ): Promise<void> {
-  const clientIp = await getRequestClientIp(options?.headers);
+  void _options;
   await consumeRateLimit({
     scope: RATE_LIMIT_SCOPES.AUTH_PASSWORD_CHANGE_USER,
-    identifier: `${actor.userId}:${clientIp}`,
+    identifier: actor.userId,
   });
 
   const input = changePasswordSchema.parse(rawPayload);

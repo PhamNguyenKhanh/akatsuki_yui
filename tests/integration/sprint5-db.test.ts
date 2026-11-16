@@ -72,6 +72,7 @@ describe("Sprint 5 PostgreSQL Integration Tests — Documents, Notifications, Re
   let secondLeaderActor: AuthContext;
 
   beforeAll(async () => {
+    await prisma.smtpQuotaAttempt.deleteMany({});
     const existingActive = await prisma.project.findFirst({
       where: { status: ProjectStatus.ACTIVE },
       select: { id: true },
@@ -280,6 +281,7 @@ describe("Sprint 5 PostgreSQL Integration Tests — Documents, Notifications, Re
   });
 
   it("persists transactional Notifications + EMAIL Deliveries for Account, Project Membership, and Task Workflow events", async () => {
+    await prisma.smtpQuotaAttempt.deleteMany({});
     // 1. Account Registration -> notifies active Admins (BR-NOTIF-001)
     const pendingCandidate = await registerAccount({
       fullName: "Pending Candidate S5",
@@ -300,7 +302,9 @@ describe("Sprint 5 PostgreSQL Integration Tests — Documents, Notifications, Re
     expect(adminRegNotif).not.toBeNull();
     expect(adminRegNotif?.deliveries).toHaveLength(1);
     expect(adminRegNotif?.deliveries[0].channel).toBe(NotificationChannel.EMAIL);
-    expect(adminRegNotif?.deliveries[0].status).toBe(NotificationDeliveryStatus.PENDING);
+    // DEC-070: post-commit immediate dispatch runs synchronously; without test SMTP config it marks FAILED
+    expect(adminRegNotif?.deliveries[0].status).toBe(NotificationDeliveryStatus.FAILED);
+    expect(adminRegNotif?.deliveries[0].errorCode).toBe("SMTP_NOT_CONFIGURED");
 
     // 2. Account Approve -> notifies approved user (BR-NOTIF-002)
     await updateAccountStatusService(adminActor, pendingCandidate.id, { action: "APPROVE" });

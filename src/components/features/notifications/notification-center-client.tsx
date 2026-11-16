@@ -9,6 +9,7 @@ import { UrlPaginationControls } from "@/components/shared/url-pagination-contro
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { sanitizeInternalTargetPath } from "@/lib/safe-url";
 import { buildUpdatedQueryUrl } from "@/lib/search-params";
 import { usePropSyncedState } from "@/lib/use-prop-synced-state";
 import { cn } from "@/lib/utils";
@@ -127,8 +128,9 @@ export function NotificationCenterClient({
     if (!item.isRead) {
       await handleToggleRead(item, true);
     }
-    if (item.targetUrl) {
-      router.push(item.targetUrl);
+    const safeTargetUrl = sanitizeInternalTargetPath(item.targetUrl);
+    if (safeTargetUrl) {
+      router.push(safeTargetUrl);
     }
   }
 
@@ -296,7 +298,7 @@ export function NotificationCenterClient({
                 </div>
 
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
-                  {item.targetUrl && (
+                  {sanitizeInternalTargetPath(item.targetUrl) && (
                     <Button
                       type="button"
                       variant="outline"

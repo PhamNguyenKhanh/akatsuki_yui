@@ -14,6 +14,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { sanitizeExternalHttpUrl } from "@/lib/safe-url";
 import { TaskPriorityBadge, TaskStatusBadge } from "@/components/shared/status-badge";
 import { TaskAssigneesCard } from "@/components/tasks/task-assignees-card";
 import { TaskDependenciesCard } from "@/components/tasks/task-dependencies-card";
@@ -85,33 +86,35 @@ export function TaskDetailPanel({
   const [progressError, setProgressError] = React.useState<string | null>(null);
 
   const isArchived = task.project.status === ProjectStatus.ARCHIVED;
+  const isCompletedTask = task.status === TaskStatus.DONE;
+  const isReadOnlyTask = isArchived || isCompletedTask;
   const isActorEligibleForWork = capabilities.isLeaderOrAdmin || capabilities.isAssignedMember;
 
   const canStartWork =
-    !isArchived &&
+    !isReadOnlyTask &&
     task.status === TaskStatus.TODO &&
     capabilities.canUpdateTask &&
     isActorEligibleForWork;
 
   const canTriggerSubmitReview =
-    !isArchived &&
+    !isReadOnlyTask &&
     task.status === TaskStatus.IN_PROGRESS &&
     capabilities.canSubmitReview &&
     isActorEligibleForWork;
 
   const canTriggerReviewDecision =
-    !isArchived &&
+    !isReadOnlyTask &&
     task.status === TaskStatus.REVIEW &&
     capabilities.canReviewTask &&
     capabilities.isLeaderOrAdmin;
 
-  const canEditProgress = !isArchived && capabilities.canUpdateTask && isActorEligibleForWork;
+  const canEditProgress = !isReadOnlyTask && capabilities.canUpdateTask && isActorEligibleForWork;
 
   const canEditLeaderMetadata =
-    !isArchived && capabilities.canUpdateTask && capabilities.isLeaderOrAdmin;
+    !isReadOnlyTask && capabilities.canUpdateTask && capabilities.isLeaderOrAdmin;
 
   const canManageAssignees =
-    !isArchived && capabilities.canAssignTask && capabilities.isLeaderOrAdmin;
+    !isReadOnlyTask && capabilities.canAssignTask && capabilities.isLeaderOrAdmin;
 
   async function handleStartWork() {
     setStatusBusy(true);
@@ -163,6 +166,17 @@ export function TaskDetailPanel({
           <AlertTitle>Project đã ở trạng thái ARCHIVED</AlertTitle>
           <AlertDescription>
             Toàn bộ thông tin Task chỉ được phép xem (read-only) theo quy định BR-PROJ-008.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {!isArchived && isCompletedTask && (
+        <Alert>
+          <CheckCircle2 className="h-4 w-4" />
+          <AlertTitle>Task đã hoàn thành (DONE) — Chỉ xem (Read-Only)</AlertTitle>
+          <AlertDescription>
+            Task đã được duyệt hoàn thành và bị khóa chỉnh sửa hoàn toàn. Các tài liệu bổ sung sau
+            nghiệm thu được quản lý trong module Documents.
           </AlertDescription>
         </Alert>
       )}
@@ -332,19 +346,25 @@ export function TaskDetailPanel({
                 Liên kết hiện tại ({task.referenceLinks.length})
               </p>
               <ul className="space-y-1">
-                {task.referenceLinks.map((link) => (
-                  <li key={link} className="text-sm">
-                    <a
-                      href={link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 break-all text-primary underline"
-                    >
-                      <span>{link}</span>
-                      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                    </a>
-                  </li>
-                ))}
+                {task.referenceLinks.map((link) => {
+                  const safeLink = sanitizeExternalHttpUrl(link);
+                  if (!safeLink) {
+                    return null;
+                  }
+                  return (
+                    <li key={safeLink} className="text-sm">
+                      <a
+                        href={safeLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 break-all text-primary underline"
+                      >
+                        <span>{safeLink}</span>
+                        <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                      </a>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
@@ -404,7 +424,7 @@ export function TaskDetailPanel({
           assignees={task.assignees}
           assignableMembers={assignableMembers}
           canManageAssignees={canManageAssignees}
-          isArchived={isArchived}
+          isArchived={isReadOnlyTask}
         />
 
         <TaskDependenciesCard
@@ -414,7 +434,7 @@ export function TaskDetailPanel({
           dependents={task.dependents}
           candidateTasks={candidateTasks}
           canManageDependencies={canEditLeaderMetadata}
-          isArchived={isArchived}
+          isArchived={isReadOnlyTask}
         />
       </div>
 

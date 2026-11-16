@@ -1,4 +1,5 @@
 import { apiError, apiSuccess } from "@/lib/api-response";
+import { enforceApiWriteRateLimit } from "@/lib/rate-limit";
 import { parseJsonBody } from "@/lib/request";
 import { requireActiveUser } from "@/modules/authorization/require-auth";
 import type { RestoreProjectInput } from "@/modules/projects/project.schema";
@@ -11,6 +12,7 @@ type RouteContext = {
 export async function POST(request: Request, context: RouteContext) {
   try {
     const actor = await requireActiveUser();
+    await enforceApiWriteRateLimit(actor.userId);
     const { projectId } = await context.params;
     const body = (await parseJsonBody(request)) as RestoreProjectInput;
     const restored = await restoreProjectService(actor, projectId, body);

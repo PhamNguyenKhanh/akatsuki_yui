@@ -127,7 +127,27 @@ export const restoreProjectSchema = z.object({
   targetStatus: z.enum([ProjectStatus.CREATED, ProjectStatus.ACTIVE]),
 });
 
+export const PROJECT_CANDIDATE_KINDS = ["instructor", "leader", "member"] as const;
+export type ProjectCandidateKind = (typeof PROJECT_CANDIDATE_KINDS)[number];
+
+export const projectCandidateQuerySchema = z.object({
+  kind: z.enum(PROJECT_CANDIDATE_KINDS),
+  q: z
+    .string()
+    .trim()
+    .max(100, "Từ khóa tìm kiếm tối đa 100 ký tự.")
+    .optional()
+    .transform((val) => (val && val.length > 0 ? val : undefined)),
+  projectId: uuidSchema.optional(),
+  excludeCurrentMembers: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((val) => val === "true"),
+  limit: z.coerce.number().int().min(1).max(50).default(25),
+});
+
 export type ProjectListQueryInput = z.infer<typeof projectListQuerySchema>;
 export type CreateProjectInput = z.input<typeof createProjectSchema>;
 export type UpdateProjectInput = z.input<typeof updateProjectSchema>;
 export type RestoreProjectInput = z.infer<typeof restoreProjectSchema>;
+export type ProjectCandidateQueryInput = z.input<typeof projectCandidateQuerySchema>;

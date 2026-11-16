@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ProjectStatus } from "@prisma/client";
+import { ProjectStatus, TaskStatus } from "@prisma/client";
 import { ArrowLeft } from "lucide-react";
 import { TaskForm } from "@/components/tasks/task-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -70,6 +70,13 @@ export default async function EditTaskPage({ params }: EditTaskPageProps) {
           <AlertDescription>
             Theo quy định BR-PROJ-008, Task thuộc Project đã Archive chỉ được xem dữ liệu và không
             thể chỉnh sửa.
+          </AlertDescription>
+        </Alert>
+      ) : task.status === TaskStatus.DONE ? (
+        <Alert variant="destructive">
+          <AlertTitle>Task đã hoàn thành (DONE)</AlertTitle>
+          <AlertDescription>
+            Task đã ở trạng thái DONE và bị khóa chỉnh sửa hoàn toàn (read-only).
           </AlertDescription>
         </Alert>
       ) : (

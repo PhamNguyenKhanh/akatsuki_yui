@@ -104,7 +104,7 @@ test.describe("Workflow C, D & E — Project Lifecycle, Multi-Assignee DAG Tasks
     // Activate Project 1 -> ACTIVE
     await adminPage.getByRole("button", { name: "Kích hoạt Project" }).click();
     await adminPage.getByRole("button", { name: "Xác nhận kích hoạt" }).click();
-    await expect(adminPage.getByText("ACTIVE").first()).toBeVisible();
+    await expect(adminPage.getByText("Đang hoạt động").first()).toBeVisible();
 
     // Activate Project 2 while Project 1 is ACTIVE -> blocked 409 (BR-PROJ-004)
     const conflictActivate = await adminPage.request.post(
@@ -190,36 +190,35 @@ test.describe("Workflow C, D & E — Project Lifecycle, Multi-Assignee DAG Tasks
 
     await m1Page.goto(`/projects/${project1Id}/tasks/${taskB.id}`);
     await m1Page.getByRole("button", { name: "Bắt đầu thực hiện" }).click();
+    await expect(m1Page.getByRole("button", { name: "Gửi Review" })).toBeVisible();
     await m1Page.getByRole("button", { name: "Gửi Review" }).click();
     await m1Page.locator("#review-modal-textarea").fill("Ready for leader review");
-    await m1Page
-      .getByRole("button", { name: /Gửi Review/i })
-      .last()
-      .click();
+    await m1Page.getByRole("button", { name: "Xác nhận gửi Review" }).click();
+    await expect(m1Page.getByText(/sang trạng thái REVIEW\./)).toBeVisible();
+    await expect(m1Page.getByText("Review", { exact: true }).first()).toBeVisible();
 
     // Leader rejects first with reason -> IN_PROGRESS
     await leaderPage.goto(`/projects/${project1Id}/tasks/${taskB.id}`);
     await leaderPage.getByRole("button", { name: "Từ chối (Reject)" }).click();
     await leaderPage.locator("#review-modal-textarea").fill("Need unit test coverage");
-    await leaderPage
-      .getByRole("button", { name: /Từ chối/i })
-      .last()
-      .click();
-    await expect(leaderPage.getByText("IN_PROGRESS").first()).toBeVisible();
+    await leaderPage.getByRole("button", { name: "Trả về In Progress" }).click();
+    await expect(leaderPage.getByText(/về trạng thái IN_PROGRESS\./)).toBeVisible();
+    await expect(leaderPage.getByRole("button", { name: "Gửi Review" })).toBeVisible();
 
     // Resubmit & approve -> DONE
     await m1Page.reload();
     await m1Page.getByRole("button", { name: "Gửi Review" }).click();
     await m1Page.locator("#review-modal-textarea").fill("Added tests");
-    await m1Page
-      .getByRole("button", { name: /Gửi Review/i })
-      .last()
-      .click();
+    await m1Page.getByRole("button", { name: "Xác nhận gửi Review" }).click();
+    await expect(m1Page.getByText(/sang trạng thái REVIEW\./)).toBeVisible();
+    await expect(m1Page.getByText("Review", { exact: true }).first()).toBeVisible();
 
     await leaderPage.reload();
     await leaderPage.getByRole("button", { name: "Duyệt (Approve)" }).click();
-    await leaderPage.getByRole("button", { name: /Duyệt/i }).last().click();
-    await expect(leaderPage.getByText("DONE").first()).toBeVisible();
+    await leaderPage.locator("#review-modal-textarea").fill("LGTM");
+    await leaderPage.getByRole("button", { name: "Duyệt hoàn thành (DONE)" }).click();
+    await expect(leaderPage.getByText(/Đã duyệt hoàn thành/)).toBeVisible();
+    await expect(leaderPage.getByText(/DONE.*Chỉ xem/i)).toBeVisible();
 
     // 3. Create Sprint 1 & Sprint 2, verify Dual Concurrent ACTIVE Sprints (DEC-006) & Backlog <= 50 pageSize
     const todayYmd = new Date().toISOString().slice(0, 10);
@@ -238,7 +237,7 @@ test.describe("Workflow C, D & E — Project Lifecycle, Multi-Assignee DAG Tasks
 
     // Sprint Detail Page & Backlog API both work cleanly (regression for BUG-601 pageSize<=50)
     await leaderPage.goto(`/projects/${project1Id}/sprints/${sprint1Id}`);
-    await expect(leaderPage.getByText(`${runTag} Sprint 1`)).toBeVisible();
+    await expect(leaderPage.getByText(`${runTag} Sprint 1`).first()).toBeVisible();
 
     const backlogRes = await leaderPage.request.get(
       `/api/v1/projects/${project1Id}/backlog?pageSize=50`
@@ -246,7 +245,7 @@ test.describe("Workflow C, D & E — Project Lifecycle, Multi-Assignee DAG Tasks
     expect(backlogRes.status()).toBe(200);
 
     // Assign Task A to Sprint 1 and activate BOTH Sprint 1 and Sprint 2 concurrently
-    const assignRes = await leaderPage.request.post(`/api/v1/sprints/${sprint1Id}/tasks`, {
+    const assignRes = await leaderPage.request.put(`/api/v1/sprints/${sprint1Id}/tasks`, {
       data: { taskIds: [taskA.id] },
     });
     expect(assignRes.status()).toBe(200);

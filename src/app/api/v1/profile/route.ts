@@ -1,4 +1,5 @@
 import { apiError, apiSuccess } from "@/lib/api-response";
+import { enforceApiWriteRateLimit } from "@/lib/rate-limit";
 import { parseJsonBody } from "@/lib/request";
 import { requireActiveUser } from "@/modules/authorization/require-auth";
 import { getMyProfileService, updateMyProfileService } from "@/modules/users/user.service";
@@ -16,6 +17,7 @@ export async function GET() {
 export async function PATCH(request: Request) {
   try {
     const actor = await requireActiveUser();
+    await enforceApiWriteRateLimit(actor.userId);
     const body = await parseJsonBody(request);
     const updated = await updateMyProfileService(actor, body);
     return apiSuccess(updated);

@@ -1,5 +1,6 @@
 import "server-only";
 import { UserStatus } from "@prisma/client";
+import { z } from "zod";
 import { conflictError, forbiddenError, unauthorizedError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { hashPassword, verifyPassword } from "@/lib/password";
@@ -106,19 +107,23 @@ export async function registerAccount(
   });
 }
 
+const DUMMY_BCRYPT_HASH = "$2b$12$Nxjy92/aSkYJxD2z5bqFF.6UlLFohzksA9gqN8R3HwV.mLxkwlPlO";
+const logoutUserIdSchema = z.string().uuid();
+
 export async function authenticateCredentials(
   rawInput: LoginInput
 ): Promise<AuthenticatedCredentialsUser> {
   const input = loginSchema.parse(rawInput);
 
   const user = await userRepository.findAuthCredentialsByEmail(input.email);
-  if (!user) {
-    throw unauthorizedError("Email hoặc mật khẩu không chính xác.", "INVALID_CREDENTIALS");
-  }
+  // Constant-time-aligned password check prevents distinguishing unknown emails from wrong passwords
+  const passwordHashToVerify = user?.passwordHash ?? DUMMY_BCRYPT_HASH;
+  const isPasswordValid = await verifyPassword(input.password, passwordHashToVerify);
 
-  const isPasswordValid = await verifyPassword(input.password, user.passwordHash);
-  if (!isPasswordValid) {
-    logger.warn("Login failed: invalid password", { userId: user.id, email: user.email });
+  if (!user || !isPasswordValid) {
+    if (user) {
+      logger.warn("Login failed: invalid password", { userId: user.id, email: user.email });
+    }
     throw unauthorizedError("Email hoặc mật khẩu không chính xác.", "INVALID_CREDENTIALS");
   }
 
@@ -169,4 +174,39 @@ export async function recordLogoutActivity(userId: string, email?: string): Prom
       description: `Người dùng ${email ?? userId} đã đăng xuất.`,
     },
   });
+}
+
+export interface RevokeSessionOnLogoutInput {
+  userId: string;
+  email?: string | null;
+  expectedTokenVersion?: number;
+}
+
+export async function revokeUserSessionOnLogout(
+  input: RevokeSessionOnLogoutInput
+): Promise<{ revoked: boolean }> {
+  const parsedUserId = logoutUserIdSchema.safeParse(input.userId);
+  if (!parsedUserId.success) {
+    return { revoked: false };
+  }
+
+  const userId = parsedUserId.data;
+  const updated = await prisma.user.updateMany({
+    where: {
+      id: userId,
+      ...(typeof input.expectedTokenVersion === "number" && input.expectedTokenVersion >= 0
+        ? { tokenVersion: input.expectedTokenVersion }
+        : {}),
+    },
+    data: {
+      tokenVersion: { increment: 1 },
+    },
+  });
+
+  if (updated.count > 0) {
+    await recordLogoutActivity(userId, input.email ?? undefined).catch(() => undefined);
+    return { revoked: true };
+  }
+
+  return { revoked: false };
 }

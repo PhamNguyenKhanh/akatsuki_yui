@@ -1,4 +1,5 @@
 import { apiError, apiSuccess } from "@/lib/api-response";
+import { enforceApiWriteRateLimit } from "@/lib/rate-limit";
 import { parseJsonBody } from "@/lib/request";
 import { requireActiveUser } from "@/modules/authorization/require-auth";
 import {
@@ -25,6 +26,7 @@ export async function GET(_request: Request, context: RouteContext) {
 export async function PUT(request: Request, context: RouteContext) {
   try {
     const actor = await requireActiveUser();
+    await enforceApiWriteRateLimit(actor.userId);
     const { taskId } = await context.params;
     const body = await parseJsonBody(request);
     const assignees = await syncTaskAssigneesService(actor, taskId, body);
@@ -37,6 +39,7 @@ export async function PUT(request: Request, context: RouteContext) {
 export async function POST(request: Request, context: RouteContext) {
   try {
     const actor = await requireActiveUser();
+    await enforceApiWriteRateLimit(actor.userId);
     const { taskId } = await context.params;
     const body = await parseJsonBody(request);
     const assignees = await addTaskAssigneeService(actor, taskId, body);
