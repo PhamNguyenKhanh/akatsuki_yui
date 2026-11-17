@@ -39,8 +39,6 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">Quản lý Project</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Theo dõi danh sách Project trong phạm vi được phân công, vòng đời CREATED / ACTIVE /
-          ARCHIVED và thành viên tham gia.
         </p>
       </div>
 

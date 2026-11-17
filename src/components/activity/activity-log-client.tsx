@@ -92,7 +92,7 @@ export function ActivityLogClient({
     }
   ): URLSearchParams {
     const params = new URLSearchParams();
-    params.set("limit", "25");
+    params.set("limit", "10");
 
     const pId = override?.projectId ?? projectId;
     const src = override?.source ?? sourceFilter;
@@ -207,11 +207,9 @@ export function ActivityLogClient({
         <div className="space-y-1">
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-900">
             <Activity className="h-6 w-6 text-primary" />
-            Lịch sử Hoạt động Thống nhất
+            Lịch sử Hoạt động
           </h1>
           <p className="text-sm text-muted-foreground">
-            Dòng thời gian hợp nhất giữa ActivityLog (Project/Sprint/Document) và TaskHistory (Task
-            &amp; Review) theo múi giờ Asia/Ho_Chi_Minh.
           </p>
         </div>
 
@@ -234,7 +232,7 @@ export function ActivityLogClient({
       {isRestrictedScope && (
         <Alert>
           <ShieldCheck className="h-4 w-4" />
-          <AlertTitle>Phạm vi hiển thị dành cho Member (DEC-052)</AlertTitle>
+          <AlertTitle></AlertTitle>
           <AlertDescription>
             Trong các Project bạn tham gia với vai trò Member, bạn chỉ xem được hành động của chính
             mình hoặc hoạt động trên các Task bạn được giao, và không bao gồm nhật ký cấp Workspace.
@@ -412,8 +410,6 @@ export function ActivityLogClient({
             Nhật ký dòng thời gian ({items.length} mục đã tải)
           </CardTitle>
           <CardDescription>
-            Phân trang bằng cursor ổn định theo thứ tự thời gian giảm dần (không bỏ sót khi có sự
-            kiện mới).
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -89,8 +89,7 @@ export function ProjectListClient({
               <span>Danh sách Project ({total})</span>
             </CardTitle>
             <CardDescription>
-              Chỉ tối đa 01 Project được phép ACTIVE tại một thời điểm trên toàn Workspace
-              (BR-PROJ-004).
+              Chỉ tối đa 01 Project được phép ACTIVE tại một thời điểm trên toàn Workspace.
             </CardDescription>
           </div>
           {canCreate && (

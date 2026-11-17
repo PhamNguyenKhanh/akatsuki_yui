@@ -33,7 +33,7 @@ export default async function NotificationsPage({
 
   const notificationList = await listUserNotificationsService(actor, {
     page,
-    pageSize: 20,
+    pageSize: 10,
     status,
     ...(type ? { type } : {}),
   });
@@ -45,8 +45,6 @@ export default async function NotificationsPage({
           Trung tâm Thông báo (Notification Center)
         </h1>
         <p className="text-sm text-muted-foreground">
-          Quản lý tất cả thông báo cá nhân trong hệ thống, đánh dấu đã đọc/chưa đọc và điều hướng
-          nhanh tới đối tượng liên quan.
         </p>
       </div>
 

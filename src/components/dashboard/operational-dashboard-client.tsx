@@ -94,7 +94,7 @@ export function OperationalDashboardClient({
       <div className="flex flex-col justify-between gap-4 border-b border-border pb-5 lg:flex-row lg:items-end">
         <div className="space-y-1.5">
           <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-            Vận hành hàng ngày · Operational Dashboard
+            Operational Dashboard
           </p>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
             Xin chào, {actorName}
@@ -105,8 +105,6 @@ export function OperationalDashboardClient({
             {actorRoles.map((role) => (
               <RoleBadge key={role} role={role} />
             ))}
-            <span>·</span>
-            <span className="text-xs">{permissionCount} quyền đang hoạt động</span>
           </div>
         </div>
 
@@ -128,7 +126,7 @@ export function OperationalDashboardClient({
           {accessibleProjects.length > 0 && selectedProject && (
             <div className="flex min-w-[260px] flex-col gap-1">
               <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                Project đang theo dõi (Mặc định ACTIVE trước)
+                Project đang theo dõi
               </span>
               <Select value={selectedProject.id} onValueChange={handleProjectChange}>
                 <SelectTrigger aria-label="Chọn Project trên Dashboard">
@@ -434,7 +432,7 @@ export function OperationalDashboardClient({
                 <CardDescription>
                   {recentActivity.isMemberRestricted
                     ? "Chỉ hiển thị hoạt động của bạn và các Task bạn tham gia trong Project."
-                    : `Dòng thời gian thống nhất mới nhất của ${selectedProject.name}.`}
+                    : ` `}
                 </CardDescription>
               </div>
               <Button asChild variant="outline" size="sm">
@@ -492,7 +490,7 @@ export function OperationalDashboardClient({
 
         {/* Governance & Workspace Summary Widgets */}
         <div className="space-y-4">
-          {permissions.canReadProjects && workspaceProjectSummary && (
+          {permissions.canReadProjects && workspaceProjectSummary && !actorRoles.includes("MEMBER") && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-base">

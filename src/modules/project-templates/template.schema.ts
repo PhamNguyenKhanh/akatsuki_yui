@@ -29,7 +29,7 @@ const templateConfigurationSchema = templateConfigurationRecordSchema
   .transform((value) => value ?? null);
 
 export const projectTemplateListQuerySchema = paginationQuerySchema.extend({
-  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  pageSize: z.coerce.number().int().min(1).max(100).default(10),
   search: z.string().trim().max(150).optional(),
   activeOnly: z
     .union([z.boolean(), z.enum(["true", "false"])])

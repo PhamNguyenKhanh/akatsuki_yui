@@ -68,7 +68,7 @@ export const activityQuerySchema = z
     to: optionalYmdFilter,
     search: z.preprocess(emptyStringToUndefined, z.string().trim().max(200).optional()),
     cursor: z.preprocess(emptyStringToUndefined, z.string().trim().max(1000).optional()),
-    limit: z.preprocess(emptyStringToUndefined, z.coerce.number().int().min(1).max(50).default(20)),
+    limit: z.preprocess(emptyStringToUndefined, z.coerce.number().int().min(1).max(50).default(10)),
   })
   .superRefine((data, ctx) => {
     if (data.from && data.to && diffYmdDays(data.from, data.to) < 0) {

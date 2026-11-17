@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { Toaster } from "sonner";
+import { ThemeProvider } from "@/components/theme/theme-provider";
 import { NONCE_REQUEST_HEADER } from "@/lib/security-headers";
+import { buildThemeInitScript } from "@/lib/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -20,12 +22,15 @@ export default async function RootLayout({
 }>) {
   // Reading the per-request nonce opts layout rendering into dynamic SSR so Next.js 16
   // automatically attaches matching nonce attributes to inline hydration/flight scripts.
-  await headers().then((hdrs) => hdrs.get(NONCE_REQUEST_HEADER));
+  const nonce = (await headers()).get(NONCE_REQUEST_HEADER) ?? undefined;
 
   return (
-    <html lang="vi" suppressHydrationWarning>
+    <html lang="vi" data-mode="light" data-theme="gray" suppressHydrationWarning>
+      <head>
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: buildThemeInitScript() }} />
+      </head>
       <body className="min-h-screen bg-background text-foreground antialiased">
-        {children}
+        <ThemeProvider>{children}</ThemeProvider>
         <Toaster richColors position="top-right" />
       </body>
     </html>

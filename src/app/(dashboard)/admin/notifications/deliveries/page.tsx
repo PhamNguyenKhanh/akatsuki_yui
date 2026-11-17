@@ -44,7 +44,7 @@ export default async function AdminNotificationDeliveriesPage({
 
   const deliveries = await listAdminNotificationDeliveriesService(actor, {
     page,
-    pageSize: 20,
+    pageSize: 10,
     status,
     ...(type ? { type } : {}),
     ...(recipientEmail ? { recipientEmail } : {}),

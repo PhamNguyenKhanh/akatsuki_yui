@@ -88,7 +88,7 @@ export const documentListQuerySchema = z.object({
     .optional()
     .transform((v) => (v && v.length > 0 ? v : undefined)),
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  pageSize: z.coerce.number().int().min(1).max(100).default(10),
 });
 
 export type CreateDocumentInput = z.input<typeof createDocumentSchema>;

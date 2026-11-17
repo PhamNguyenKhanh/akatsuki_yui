@@ -288,8 +288,6 @@ export function ProjectReportsClient({
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            Phân tích tiến độ, đóng góp thành viên phi cộng dồn, tái dựng lịch sử Sprint và xu hướng
-            tồn đọng ({analytics.window.timezone}, UTC+07:00).
           </p>
         </div>
 
@@ -555,9 +553,6 @@ export function ProjectReportsClient({
               <CardHeader>
                 <CardTitle className="text-base">Xu hướng Tạo mới &amp; Hoàn thành Task</CardTitle>
                 <CardDescription>
-                  Số Task tạo mới và chuyển DONE theo{" "}
-                  {analytics.window.granularity === "week" ? "tuần ISO" : "ngày"} (múi giờ
-                  Asia/Ho_Chi_Minh).
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1164,9 +1159,7 @@ export function ProjectReportsClient({
 
       {/* Footer Note */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
         <span>
-          Báo cáo trực tiếp (View-only, DEC-054) · Nguồn sự thật duy nhất từ PostgreSQL/Prisma.
         </span>
       </div>
     </div>

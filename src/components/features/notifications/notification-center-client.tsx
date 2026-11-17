@@ -168,8 +168,6 @@ export function NotificationCenterClient({
             )}
           </CardTitle>
           <CardDescription>
-            Theo dõi cập nhật về phân công Task, duyệt công việc, thành viên Project và nhắc hạn
-            Deadline.
           </CardDescription>
         </div>
 

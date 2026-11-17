@@ -284,7 +284,7 @@ export const addTaskDependencySchema = z.object({
 });
 
 export const taskHistoryQuerySchema = paginationQuerySchema.extend({
-  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  pageSize: z.coerce.number().int().min(1).max(100).default(10),
 });
 
 export type TaskListQueryInput = z.input<typeof taskListQuerySchema>;

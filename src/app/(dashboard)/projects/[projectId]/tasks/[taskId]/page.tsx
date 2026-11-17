@@ -64,7 +64,7 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
       ? listProjectTaskOptionsService(actor, task.projectId, task.id)
       : Promise.resolve([]),
     canReadHistory
-      ? listTaskHistoryService(actor, task.id, { page: 1, pageSize: 20 })
+      ? listTaskHistoryService(actor, task.id, { page: 1, pageSize: 10 })
       : Promise.resolve(null),
   ]);
 

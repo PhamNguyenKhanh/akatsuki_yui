@@ -65,7 +65,7 @@ export default async function ProjectDocumentsPage({
   const [documentList, projectSprints] = await Promise.all([
     listProjectDocumentsService(actor, projectAccess.id, {
       page,
-      pageSize: 20,
+      pageSize: 10,
       ...(search ? { search } : {}),
       ...(category ? { category } : {}),
       ...(sprintId ? { sprintId } : {}),

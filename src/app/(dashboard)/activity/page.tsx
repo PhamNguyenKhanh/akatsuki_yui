@@ -31,7 +31,7 @@ export default async function ActivityPage({ searchParams }: ActivityPageProps) 
     [initialFeed, filterOptions] = await Promise.all([
       listUnifiedActivityService(actor, {
         ...(initialProjectId ? { projectId: initialProjectId } : {}),
-        limit: 25,
+        limit: 10,
       }),
       getActivityFilterOptionsService(actor),
     ]);

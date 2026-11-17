@@ -52,6 +52,7 @@ __pycache__/
 
 # Local docs, plans, and reports (never push to git)
 /docs/
+/doc/
 /markdown/
 /report/
 /*-IMPLEMENTATION-PLAN.md

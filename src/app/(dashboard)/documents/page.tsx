@@ -49,7 +49,7 @@ export default async function GlobalDocumentsPage({
     [documentList, accessibleProjects] = await Promise.all([
       listGlobalDocumentsService(actor, {
         page,
-        pageSize: 20,
+        pageSize: 10,
         ...(search ? { search } : {}),
         ...(category ? { category } : {}),
         ...(projectId ? { projectId } : {}),
