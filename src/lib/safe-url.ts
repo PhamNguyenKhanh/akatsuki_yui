@@ -1,4 +1,5 @@
 export const ALLOWED_GOOGLE_DRIVE_HOSTS = new Set(["drive.google.com", "docs.google.com"]);
+export const ALLOWED_GOOGLE_MEET_HOSTS = new Set(["meet.google.com"]);
 
 const CONTROL_CHARS_OR_BACKSLASH = /[\u0000-\u001F\u007F\\]/;
 const HTTP_HTTPS_PREFIX = /^https?:\/\/[^/\s?#\\]/i;
@@ -71,7 +72,11 @@ export function validateGoogleDriveUrl(rawUrl: string): GoogleDriveUrlValidation
   if (trimmed.length > 1000) {
     return { valid: false, reason: "URL tài liệu không được vượt quá 1000 ký tự." };
   }
-  if (CONTROL_CHARS_OR_BACKSLASH.test(trimmed) || /\s/.test(trimmed) || !HTTPS_PREFIX.test(trimmed)) {
+  if (
+    CONTROL_CHARS_OR_BACKSLASH.test(trimmed) ||
+    /\s/.test(trimmed) ||
+    !HTTPS_PREFIX.test(trimmed)
+  ) {
     return {
       valid: false,
       reason: "URL tài liệu không đúng định dạng HTTPS hợp lệ.",
@@ -134,6 +139,88 @@ export function sanitizeGoogleDriveReadUrl(rawUrl: string | null | undefined): s
     return null;
   }
   const check = validateGoogleDriveUrl(rawUrl);
+  return check.valid ? (check.normalizedUrl ?? null) : null;
+}
+
+/**
+ * Validates that a URL is a legitimate HTTPS Google Meet link (https://meet.google.com/<code>).
+ * Rejects http:, control chars, embedded credentials, lookalike domains, subdomains, and bare root URLs.
+ */
+export function validateGoogleMeetUrl(rawUrl: string): GoogleDriveUrlValidationResult {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) {
+    return { valid: false, reason: "Link Google Meet không được để trống." };
+  }
+  if (trimmed.length > 500) {
+    return { valid: false, reason: "Link Google Meet không được vượt quá 500 ký tự." };
+  }
+  if (
+    CONTROL_CHARS_OR_BACKSLASH.test(trimmed) ||
+    /\s/.test(trimmed) ||
+    !HTTPS_PREFIX.test(trimmed)
+  ) {
+    return {
+      valid: false,
+      reason: "Link Google Meet không đúng định dạng HTTPS hợp lệ.",
+    };
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return { valid: false, reason: "Link Google Meet không đúng định dạng hợp lệ." };
+  }
+
+  if (parsed.protocol !== "https:") {
+    return {
+      valid: false,
+      reason: "Link Google Meet bắt buộc sử dụng giao thức HTTPS.",
+    };
+  }
+
+  if (parsed.username || parsed.password) {
+    return {
+      valid: false,
+      reason: "Link Google Meet không được chứa thông tin xác thực.",
+    };
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+  if (!ALLOWED_GOOGLE_MEET_HOSTS.has(hostname)) {
+    return {
+      valid: false,
+      reason: "Chỉ chấp nhận liên kết từ tên miền chính thức https://meet.google.com.",
+    };
+  }
+
+  if (parsed.port && parsed.port !== "443") {
+    return {
+      valid: false,
+      reason: "Link Google Meet không được sử dụng cổng mạng tùy chỉnh.",
+    };
+  }
+
+  const cleanPath = parsed.pathname.replace(/\/+$/, "");
+  if (!cleanPath || cleanPath === "") {
+    return {
+      valid: false,
+      reason:
+        "Link Google Meet phải bao gồm mã phòng họp cụ thể (VD: https://meet.google.com/abc-defg-hij).",
+    };
+  }
+
+  return {
+    valid: true,
+    normalizedUrl: trimmed,
+  };
+}
+
+export function sanitizeGoogleMeetReadUrl(rawUrl: string | null | undefined): string | null {
+  if (typeof rawUrl !== "string") {
+    return null;
+  }
+  const check = validateGoogleMeetUrl(rawUrl);
   return check.valid ? (check.normalizedUrl ?? null) : null;
 }
 
