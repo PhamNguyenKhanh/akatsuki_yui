@@ -67,6 +67,8 @@ const fullProjectMember: AuthContext = {
     PERMISSIONS.PROJECT_READ,
     PERMISSIONS.TASK_READ,
     PERMISSIONS.SPRINT_READ,
+    PERMISSIONS.SCHEDULE_READ,
+    PERMISSIONS.MEETING_READ,
     PERMISSIONS.DOCUMENT_READ,
     PERMISSIONS.NOTIFICATION_READ,
   ],
@@ -92,7 +94,7 @@ describe("Sidebar Active Project Dropdown", () => {
     vi.clearAllMocks();
   });
 
-  it("builds all 4 active project quick links when user has TASK_READ and SPRINT_READ", () => {
+  it("builds all 6 active project quick links when user has TASK_READ, SPRINT_READ, SCHEDULE_READ and MEETING_READ", () => {
     const items = buildActiveProjectSubItems(ACTIVE_PROJECT, fullProjectMember.permissions);
 
     expect(items.map((i) => ({ key: i.key, label: i.label, href: i.href }))).toEqual([
@@ -115,6 +117,16 @@ describe("Sidebar Active Project Dropdown", () => {
         key: "backlog",
         label: "Product Backlog",
         href: `/projects/${ACTIVE_PROJECT.id}/backlog`,
+      },
+      {
+        key: "schedule",
+        label: "Lịch bận (Schedule)",
+        href: `/projects/${ACTIVE_PROJECT.id}/schedule`,
+      },
+      {
+        key: "meetings",
+        label: "Cuộc họp (Meet)",
+        href: `/projects/${ACTIVE_PROJECT.id}/meetings`,
       },
     ]);
   });
@@ -157,7 +169,7 @@ describe("Sidebar Active Project Dropdown", () => {
     const html = renderShell("/dashboard", ACTIVE_PROJECT);
 
     expect(html).toContain('href="/projects"');
-    expect(html).toContain("Dự án (Projects)");
+    expect(html).toContain("Dự án");
     expect(html).toContain('data-testid="desktop-projects-dropdown-toggle"');
     expect(html).toContain('aria-expanded="false"');
     expect(html).not.toContain('data-testid="desktop-projects-submenu"');

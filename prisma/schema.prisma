@@ -43,6 +43,10 @@ model User {
   uploadedDocuments    Document[]       @relation("DocumentUploadedBy")
   notifications        Notification[]   @relation("NotificationRecipient")
   actedNotifications   Notification[]   @relation("NotificationActor")
+  scheduleEntries      ProjectScheduleEntry[]    @relation("UserScheduleEntries")
+  createdMeetLinks     ProjectMeetLink[]         @relation("UserCreatedMeetLinks")
+  createdMeetings      ProjectMeeting[]          @relation("UserCreatedMeetings")
+  meetingParticipants  ProjectMeetingParticipant[] @relation("UserMeetingParticipants")
   activityLogs         ActivityLog[]
   auditLogs            AuditLog[]
   createdAt            DateTime         @default(now())
@@ -176,9 +180,12 @@ model Project {
   members       ProjectMember[]
   tasks         Task[]
   sprints       Sprint[]
-  documents     Document[]
-  notifications Notification[]
-  activityLogs  ActivityLog[]
+  documents       Document[]
+  notifications   Notification[]
+  scheduleEntries ProjectScheduleEntry[]
+  meetLinks       ProjectMeetLink[]
+  meetings        ProjectMeeting[]
+  activityLogs    ActivityLog[]
   archivedAt    DateTime?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
@@ -506,4 +513,111 @@ model SmtpQuotaAttempt {
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
+}
+
+enum ScheduleExceptionType {
+  CANCELLED
+  OVERRIDDEN
+}
+
+model ProjectScheduleEntry {
+  id          String                     @id @default(uuid()) @db.Uuid
+  projectId   String                     @db.Uuid
+  userId      String                     @db.Uuid
+  date        DateTime                   @db.Date
+  dayOfWeek   Int
+  isRecurring Boolean                    @default(false)
+  repeatUntil DateTime?                  @db.Date
+  startMinute Int
+  endMinute   Int
+  note        String?                    @db.VarChar(500)
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+
+  project    Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user       User                       @relation("UserScheduleEntries", fields: [userId], references: [id], onDelete: Cascade)
+  exceptions ProjectScheduleException[]
+
+  @@index([projectId, date])
+  @@index([projectId, isRecurring, dayOfWeek])
+  @@index([projectId, userId, date])
+}
+
+model ProjectScheduleException {
+  id                  String                @id @default(uuid()) @db.Uuid
+  entryId             String                @db.Uuid
+  exceptionDate       DateTime              @db.Date
+  type                ScheduleExceptionType
+  overrideStartMinute Int?
+  overrideEndMinute   Int?
+  overrideNote        String?               @db.VarChar(500)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  entry ProjectScheduleEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@unique([entryId, exceptionDate])
+  @@index([exceptionDate])
+}
+
+enum ProjectMeetingStatus {
+  SCHEDULED
+  CANCELLED
+}
+
+model ProjectMeetLink {
+  id          String           @id @default(uuid()) @db.Uuid
+  projectId   String           @db.Uuid
+  createdById String           @db.Uuid
+  label       String           @db.VarChar(150)
+  url         String           @db.VarChar(500)
+  description String?          @db.VarChar(500)
+  isDefault   Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User             @relation("UserCreatedMeetLinks", fields: [createdById], references: [id], onDelete: Restrict)
+  meetings  ProjectMeeting[]
+
+  @@index([projectId, createdAt])
+}
+
+model ProjectMeeting {
+  id          String               @id @default(uuid()) @db.Uuid
+  projectId   String               @db.Uuid
+  meetLinkId  String?              @db.Uuid
+  createdById String               @db.Uuid
+  title       String               @db.VarChar(200)
+  description String?              @db.Text
+  meetUrl     String               @db.VarChar(500)
+  date        DateTime             @db.Date
+  startMinute Int
+  endMinute   Int
+  startAt     DateTime
+  endAt       DateTime
+  status      ProjectMeetingStatus @default(SCHEDULED)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  project      Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  meetLink     ProjectMeetLink?            @relation(fields: [meetLinkId], references: [id], onDelete: SetNull)
+  createdBy    User                        @relation("UserCreatedMeetings", fields: [createdById], references: [id], onDelete: Restrict)
+  participants ProjectMeetingParticipant[]
+
+  @@index([projectId, status, date, startMinute])
+  @@index([projectId, startAt])
+}
+
+model ProjectMeetingParticipant {
+  id        String   @id @default(uuid()) @db.Uuid
+  meetingId String   @db.Uuid
+  userId    String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  meeting ProjectMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user    User           @relation("UserMeetingParticipants", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, userId])
+  @@index([userId])
 }

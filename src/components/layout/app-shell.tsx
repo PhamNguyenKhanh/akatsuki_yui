@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Bell,
+  CalendarClock,
   CalendarRange,
   CheckSquare,
   ChevronDown,
@@ -22,6 +23,7 @@ import {
   Shield,
   UserCog,
   Users,
+  Video,
   X,
 } from "lucide-react";
 import { NotificationBell } from "@/components/features/notifications/notification-bell";
@@ -39,7 +41,7 @@ export interface SidebarActiveProject {
 }
 
 export interface SidebarSubNavItem {
-  key: "tasks" | "sprints" | "kanban" | "backlog";
+  key: "tasks" | "sprints" | "kanban" | "backlog" | "schedule" | "meetings";
   label: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -156,6 +158,20 @@ const ACTIVE_PROJECT_QUICK_LINK_SPECS: readonly ActiveProjectQuickLinkSpec[] = [
     segment: "backlog",
     icon: ListTodo,
     requiredPermissions: [PERMISSIONS.TASK_READ, PERMISSIONS.SPRINT_READ],
+  },
+  {
+    key: "schedule",
+    label: "Lịch bận (Schedule)",
+    segment: "schedule",
+    icon: CalendarClock,
+    requiredPermissions: [PERMISSIONS.SCHEDULE_READ],
+  },
+  {
+    key: "meetings",
+    label: "Cuộc họp (Meet)",
+    segment: "meetings",
+    icon: Video,
+    requiredPermissions: [PERMISSIONS.MEETING_READ],
   },
 ];
 

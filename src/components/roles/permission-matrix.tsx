@@ -26,6 +26,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   project: "Dự án",
   task: "Công việc (Task)",
   sprint: "Sprint",
+  schedule: "Lịch bận (Schedule)",
+  meeting: "Cuộc họp (Google Meet)",
   document: "Tài liệu",
   notification: "Thông báo",
   report: "Báo cáo",
