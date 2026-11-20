@@ -68,7 +68,7 @@ export default async function EditTaskPage({ params }: EditTaskPageProps) {
         <Alert variant="destructive">
           <AlertTitle>Project đang ở trạng thái ARCHIVED</AlertTitle>
           <AlertDescription>
-            Theo quy định BR-PROJ-008, Task thuộc Project đã Archive chỉ được xem dữ liệu và không
+            Theo quy định, Task thuộc Project đã Archive chỉ được xem dữ liệu và không
             thể chỉnh sửa.
           </AlertDescription>
         </Alert>

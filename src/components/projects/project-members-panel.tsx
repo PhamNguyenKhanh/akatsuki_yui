@@ -193,8 +193,6 @@ export function ProjectMembersPanel({
             Thành viên Project ({activeMembers.length} đang tham gia)
           </CardTitle>
           <CardDescription>
-            Chỉ tài khoản ACTIVE mới được thêm vào Project (BR-MEM-001). Thành viên bị loại bỏ được
-            đánh dấu leftAt để bảo toàn lịch sử (BR-MEM-003, DEC-009).
           </CardDescription>
         </div>
         {historyMembers.length > 0 && (
@@ -220,7 +218,6 @@ export function ProjectMembersPanel({
             <AlertTitle>Project đã lưu trữ (ARCHIVED)</AlertTitle>
             <AlertDescription>
               Không thể thêm, xóa thành viên hoặc đổi Leader khi Project đang ở trạng thái ARCHIVED
-              (BR-PROJ-008).
             </AlertDescription>
           </Alert>
         )}
@@ -385,8 +382,7 @@ export function ProjectMembersPanel({
                     <AlertDialogTitle>Xác nhận đổi Project Leader</AlertDialogTitle>
                     <AlertDialogDescription>
                       Leader mới sẽ nhận quyền điều phối Project này, đồng thời Leader hiện tại sẽ
-                      trở thành thành viên (MEMBER) để đảm bảo Project luôn có đúng một Leader
-                      (BR-PROJ-002).
+                      trở thành thành viên để đảm bảo Project luôn có đúng một Leader.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -468,8 +464,7 @@ export function ProjectMembersPanel({
                                 </AlertDialogTitle>
                                 <AlertDialogDescription>
                                   Thành viên sẽ ngừng tham gia từ thời điểm hiện tại nhưng toàn bộ
-                                  lịch sử tham gia và đóng góp vẫn được bảo lưu (BR-MEM-003,
-                                  DEC-009). Nếu thành viên còn Task đang phụ trách, thao tác sẽ bị
+                                  lịch sử tham gia và đóng góp vẫn được bảo lưu. Nếu thành viên còn Task đang phụ trách, thao tác sẽ bị
                                   từ chối cho đến khi bạn phân công lại.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>

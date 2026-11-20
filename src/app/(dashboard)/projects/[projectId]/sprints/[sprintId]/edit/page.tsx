@@ -75,7 +75,7 @@ export default async function EditSprintPage({ params }: EditSprintPageProps) {
         <Alert variant="destructive">
           <AlertTitle>Project đang ở trạng thái ARCHIVED</AlertTitle>
           <AlertDescription>
-            Theo quy định BR-PROJ-008, Sprint thuộc Project đã Archive chỉ được xem dữ liệu và không
+            Theo quy định, Sprint thuộc Project đã Archive chỉ được xem dữ liệu và không
             thể chỉnh sửa.
           </AlertDescription>
         </Alert>

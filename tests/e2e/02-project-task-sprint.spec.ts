@@ -106,7 +106,6 @@ test.describe("Workflow C, D & E — Project Lifecycle, Multi-Assignee DAG Tasks
     await adminPage.getByRole("button", { name: "Xác nhận kích hoạt" }).click();
     await expect(adminPage.getByText("Đang hoạt động").first()).toBeVisible();
 
-    // Activate Project 2 while Project 1 is ACTIVE -> blocked 409 (BR-PROJ-004)
     const conflictActivate = await adminPage.request.post(
       `/api/v1/projects/${project2Id}/activate`
     );

@@ -167,7 +167,7 @@ export function TaskListClient({
           <AlertTitle>Project đang ở trạng thái ARCHIVED</AlertTitle>
           <AlertDescription>
             Bạn chỉ có thể xem danh sách và lịch sử Task. Các thao tác tạo mới, chỉnh sửa, phân công
-            và review đều đang được khóa (BR-PROJ-008).
+            và review đều đang được khóa.
           </AlertDescription>
         </Alert>
       )}

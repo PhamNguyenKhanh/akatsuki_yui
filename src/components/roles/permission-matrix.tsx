@@ -124,7 +124,7 @@ export function PermissionMatrix({ initialMatrix }: { initialMatrix: PermissionM
             <CardTitle className="text-lg">Ma trận Phân quyền (Permission Matrix)</CardTitle>
             <CardDescription>
               Thay đổi có hiệu lực ngay lập tức ở server và được ghi nhận vào AuditLog. Các quyền
-              quản trị cốt lõi của ADMIN được khóa bảo vệ (BR-AUTHZ-008).
+              quản trị cốt lõi của ADMIN được khóa bảo vệ.
             </CardDescription>
           </div>
           <div className="relative w-full sm:w-72">
@@ -201,7 +201,7 @@ export function PermissionMatrix({ initialMatrix }: { initialMatrix: PermissionM
                               aria-pressed={granted}
                               title={
                                 isCoreLocked
-                                  ? "Quyền quản trị cốt lõi của ADMIN được bảo vệ (BR-AUTHZ-008)"
+                                  ? "Quyền quản trị cốt lõi của ADMIN được bảo vệ"
                                   : granted
                                     ? `Đang bật — nhấn để thu hồi ${perm.code} khỏi ${role.name}`
                                     : `Đang tắt — nhấn để cấp ${perm.code} cho ${role.name}`

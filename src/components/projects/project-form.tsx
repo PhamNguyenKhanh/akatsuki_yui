@@ -357,8 +357,8 @@ export function ProjectForm({
                 ) : (
                   <div className="flex h-9 items-center rounded-md border border-input bg-slate-50 px-3 text-sm text-slate-700">
                     {currentUserName ?? currentLeaderUser?.fullName
-                      ? `${currentUserName ?? currentLeaderUser?.fullName} (Tự động theo BR-PROJ-003)`
-                      : "Bạn sẽ tự động trở thành Project Leader (BR-PROJ-003)"}
+                      ? `${currentUserName ?? currentLeaderUser?.fullName} ()`
+                      : "Bạn sẽ tự động trở thành Project Leader"}
                   </div>
                 )}
               </div>
