@@ -272,7 +272,7 @@ export function OperationalDashboardClient({
                     />
                   </div>
                   <p className="mt-1.5 text-xs text-muted-foreground">
-                    Tính theo số Task ở trạng thái DONE trên tổng số Task của Project (DEC-033).
+                    Tính theo số Task ở trạng thái DONE trên tổng số Task của Project.
                   </p>
                 </div>
               )}

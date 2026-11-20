@@ -60,19 +60,19 @@ const NAV_ITEMS: NavItem[] = [
     icon: LayoutDashboard,
   },
   {
-    label: "Dự án (Projects)",
+    label: "Dự án",
     href: "/projects",
     icon: FolderKanban,
     requiredPermission: PERMISSIONS.PROJECT_READ,
   },
   {
-    label: "Tài liệu (Documents)",
+    label: "Tài liệu",
     href: "/documents",
     icon: FileText,
     requiredPermission: PERMISSIONS.DOCUMENT_READ,
   },
   {
-    label: "Thông báo (Notifications)",
+    label: "Thông báo",
     href: "/notifications",
     icon: Bell,
     requiredPermission: PERMISSIONS.NOTIFICATION_READ,

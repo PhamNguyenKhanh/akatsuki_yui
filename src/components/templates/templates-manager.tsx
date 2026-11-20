@@ -187,7 +187,7 @@ export function TemplatesManager({ initialTemplates }: { initialTemplates: Proje
           </CardTitle>
           <CardDescription>
             Template là tùy chọn dùng chung toàn Workspace giúp gợi ý thông tin cấu hình khi khởi
-            tạo Project mới (DEC-001).
+            tạo Project mới.
           </CardDescription>
         </CardHeader>
         <CardContent>

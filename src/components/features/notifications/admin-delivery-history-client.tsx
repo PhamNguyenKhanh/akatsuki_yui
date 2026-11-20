@@ -315,7 +315,7 @@ export function AdminDeliveryHistoryClient({
           </CardTitle>
           <CardDescription>
             Theo dõi trạng thái gửi email thông báo qua Nodemailer SMTP và thực hiện kiểm tra / thử
-            gửi lại thủ công tối đa 3 lần (DEC-040, DEC-070).
+            gửi lại thủ công tối đa 3 lần.
           </CardDescription>
         </CardHeader>
 

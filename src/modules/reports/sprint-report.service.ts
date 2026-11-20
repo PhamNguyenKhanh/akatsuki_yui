@@ -602,9 +602,9 @@ export function computeProjectSprintReport(
     totalRolledOverTasks,
     sprints: items,
     notes: [
-      "Tỷ lệ hoàn thành Sprint luôn tính theo số Task DONE / Tổng số Task phạm vi cuối Sprint (DEC-033), tách biệt với Planned Estimate Hours.",
-      "Dữ liệu Commitment và Rollover được tái dựng xác định từ TaskHistory và ActivityLog (DEC-058), không sử dụng bảng snapshot.",
-      "Các chỉnh sửa Estimate Hours sau khi Sprint đã đóng không làm sai lệch số liệu lịch sử của Sprint đó (P0-01).",
+      "Tỷ lệ hoàn thành Sprint luôn tính theo số Task DONE / Tổng số Task phạm vi cuối Sprint, tách biệt với Planned Estimate Hours.",
+      "Dữ liệu Commitment và Rollover được tái dựng xác định từ TaskHistory và ActivityLog, không sử dụng bảng snapshot.",
+      "Các chỉnh sửa Estimate Hours sau khi Sprint đã đóng không làm sai lệch số liệu lịch sử của Sprint đó.",
     ],
   };
 }
