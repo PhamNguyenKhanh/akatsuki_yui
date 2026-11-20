@@ -1,6 +1,8 @@
 import "server-only";
 import { type Prisma, ScheduleExceptionType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { addDaysToYmd, formatHcmYmd, HCM_UTC_OFFSET_MS } from "@/lib/timezone";
+import { getIsoDayOfWeekFromYmd } from "@/modules/schedule/schedule.types";
 
 const scheduleEntrySelect = {
   id: true,
@@ -214,6 +216,95 @@ export const scheduleRepository = {
   async deleteAllExceptionsForEntry(entryId: string, tx: Prisma.TransactionClient = prisma) {
     return tx.projectScheduleException.deleteMany({
       where: { entryId },
+    });
+  },
+
+  /**
+   * Purges or truncates all schedule entries/exceptions from `archivedAt` onward
+   * when a Project transitions to ARCHIVED, keeping historical slots prior to archive intact.
+   */
+  async purgeScheduleEntriesFromArchive(
+    projectId: string,
+    archivedAt: Date,
+    tx: Prisma.TransactionClient = prisma
+  ) {
+    const archivedYmd = formatHcmYmd(archivedAt);
+    const hcmDate = new Date(archivedAt.getTime() + HCM_UTC_OFFSET_MS);
+    const archivedMinute = hcmDate.getUTCHours() * 60 + hcmDate.getUTCMinutes();
+    const archivedPgDate = toPgDateOnly(archivedYmd);
+    const yesterdayPgDate = toPgDateOnly(addDaysToYmd(archivedYmd, -1));
+    const archivedIsoDay = getIsoDayOfWeekFromYmd(archivedYmd);
+
+    // 1. Delete non-recurring entries at or after archivedAt
+    await tx.projectScheduleEntry.deleteMany({
+      where: {
+        projectId,
+        isRecurring: false,
+        OR: [
+          { date: { gt: archivedPgDate } },
+          { date: archivedPgDate, startMinute: { gte: archivedMinute } },
+        ],
+      },
+    });
+
+    // 2. Delete recurring series whose very first occurrence hasn't started by archivedAt
+    await tx.projectScheduleEntry.deleteMany({
+      where: {
+        projectId,
+        isRecurring: true,
+        OR: [
+          { date: { gt: archivedPgDate } },
+          { date: archivedPgDate, startMinute: { gte: archivedMinute } },
+        ],
+      },
+    });
+
+    // 3. Delete exceptions strictly after archive date, or today if slot starts at/after archive time
+    await tx.projectScheduleException.deleteMany({
+      where: {
+        entry: { projectId },
+        OR: [
+          { exceptionDate: { gt: archivedPgDate } },
+          {
+            exceptionDate: archivedPgDate,
+            OR: [
+              { overrideStartMinute: { gte: archivedMinute } },
+              {
+                overrideStartMinute: null,
+                entry: { startMinute: { gte: archivedMinute } },
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    // 4. Truncate ongoing recurring series whose today occurrence is at/after archive time -> yesterday
+    await tx.projectScheduleEntry.updateMany({
+      where: {
+        projectId,
+        isRecurring: true,
+        date: { lt: archivedPgDate },
+        dayOfWeek: archivedIsoDay,
+        startMinute: { gte: archivedMinute },
+        OR: [{ repeatUntil: null }, { repeatUntil: { gte: archivedPgDate } }],
+      },
+      data: {
+        repeatUntil: yesterdayPgDate,
+      },
+    });
+
+    // 5. Truncate remaining ongoing recurring series -> archived date
+    await tx.projectScheduleEntry.updateMany({
+      where: {
+        projectId,
+        isRecurring: true,
+        date: { lte: archivedPgDate },
+        OR: [{ repeatUntil: null }, { repeatUntil: { gt: archivedPgDate } }],
+      },
+      data: {
+        repeatUntil: archivedPgDate,
+      },
     });
   },
 };

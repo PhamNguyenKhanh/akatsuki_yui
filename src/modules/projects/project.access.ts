@@ -53,6 +53,8 @@ export async function assertProjectReadAccess(
       id: true,
       name: true,
       status: true,
+      startDate: true,
+      endDate: true,
       leaderId: true,
       instructorId: true,
       members: {

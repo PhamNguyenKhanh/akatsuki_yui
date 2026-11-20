@@ -33,6 +33,18 @@ const optionalNoteSchema = z
   .optional()
   .transform((val) => (val && val.length > 0 ? val : null));
 
+const optionalRepeatWeeksSchema = z
+  .union([
+    z.coerce
+      .number()
+      .int("Số tuần lặp lại phải là số nguyên.")
+      .min(1, "Số tuần lặp lại phải từ 1 tuần trở lên.")
+      .max(260, "Số tuần lặp lại tối đa là 260 tuần."),
+    z.null(),
+  ])
+  .optional()
+  .transform((val) => (val === undefined ? null : val));
+
 export const scheduleWeekQuerySchema = z.object({
   weekStart: ymdDateSchema.optional(),
   userId: uuidSchema.optional(),
@@ -44,6 +56,7 @@ export const createScheduleEntrySchema = z
     startTime: startTimeSchema,
     endTime: endTimeSchema,
     isRecurring: z.boolean().default(false),
+    repeatWeeks: optionalRepeatWeeksSchema,
     note: optionalNoteSchema,
   })
   .refine((data) => hhmmToMinutes(data.endTime) > hhmmToMinutes(data.startTime), {
@@ -59,6 +72,7 @@ export const updateScheduleEntrySchema = z
     startTime: startTimeSchema,
     endTime: endTimeSchema,
     isRecurring: z.boolean(),
+    repeatWeeks: optionalRepeatWeeksSchema,
     note: optionalNoteSchema,
   })
   .refine((data) => hhmmToMinutes(data.endTime) > hhmmToMinutes(data.startTime), {

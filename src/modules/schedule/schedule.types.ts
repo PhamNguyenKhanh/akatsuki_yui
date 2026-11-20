@@ -1,4 +1,4 @@
-import { addDaysToYmd, getHcmIsoWeekStartYmd, isValidYmd } from "@/lib/timezone";
+import { addDaysToYmd, diffYmdDays, getHcmIsoWeekStartYmd, isValidYmd } from "@/lib/timezone";
 
 export const SCHEDULE_RECURRENCE_SCOPES = ["THIS_WEEK", "THIS_AND_FUTURE", "ALL_SERIES"] as const;
 
@@ -89,6 +89,17 @@ export function buildWeekDayColumns(weekStartYmd: string): WeekDayColumn[] {
   });
 }
 
+export function computeRepeatUntilFromWeeks(startDateYmd: string, repeatWeeks: number): string {
+  const safeWeeks = Math.max(1, Math.trunc(repeatWeeks));
+  return addDaysToYmd(startDateYmd, (safeWeeks - 1) * 7);
+}
+
+export function computeRepeatWeeksFromRange(startDateYmd: string, repeatUntilYmd: string): number {
+  const deltaDays = diffYmdDays(startDateYmd, repeatUntilYmd);
+  if (deltaDays < 0) return 1;
+  return Math.floor(deltaDays / 7) + 1;
+}
+
 export interface ScheduleMemberOptionDTO {
   userId: string;
   fullName: string;
@@ -111,6 +122,8 @@ export interface ScheduleOccurrenceDTO {
   endTime: string;
   note: string | null;
   isRecurring: boolean;
+  repeatUntil: string | null;
+  repeatWeeks: number | null;
   isOverridden: boolean;
   canEdit: boolean;
   canDelete: boolean;
@@ -118,9 +131,12 @@ export interface ScheduleOccurrenceDTO {
 
 export interface ProjectWeeklyScheduleDTO {
   projectId: string;
+  projectStartDate: string;
+  projectEndDate: string;
   weekStart: string;
   weekEnd: string;
   todayYmd: string;
+  nowIso: string;
   days: WeekDayColumn[];
   members: ScheduleMemberOptionDTO[];
   occurrences: ScheduleOccurrenceDTO[];
