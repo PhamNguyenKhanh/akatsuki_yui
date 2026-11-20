@@ -92,6 +92,20 @@ export function hcmStartOfDay(ymd: string): Date {
 }
 
 /**
+ * Converts a YYYY-MM-DD calendar date and HH:mm time (00:00..24:00) in Asia/Ho_Chi_Minh (+07:00)
+ * into a UTC Date instant.
+ */
+export function hcmDateTimeInstant(ymd: string, hhmm: string): Date {
+  if (!isValidYmd(ymd)) {
+    throw new Error(`Invalid YYYY-MM-DD calendar date: ${ymd}`);
+  }
+  if (hhmm === "24:00") {
+    return new Date(`${addDaysToYmd(ymd, 1)}T00:00:00.000+07:00`);
+  }
+  return new Date(`${ymd}T${hhmm}:00.000+07:00`);
+}
+
+/**
  * Converts a YYYY-MM-DD calendar date into the UTC instant representing 23:59:59.999+07:00.
  */
 export function hcmEndOfDay(ymd: string): Date {

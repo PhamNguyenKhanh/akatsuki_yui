@@ -38,7 +38,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { addDaysToYmd, formatHcmDateVi } from "@/lib/timezone";
+import {
+  addDaysToYmd,
+  formatHcmDateVi,
+  HCM_UTC_OFFSET_MS,
+  hcmDateTimeInstant,
+} from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 import {
   createScheduleEntryAction,
@@ -46,6 +51,7 @@ import {
   updateScheduleEntryAction,
 } from "@/modules/schedule/schedule.actions";
 import {
+  computeRepeatUntilFromWeeks,
   minutesToHhmm,
   SCHEDULE_TIME_BLOCKS,
   type ProjectWeeklyScheduleDTO,
@@ -56,6 +62,7 @@ import {
 const ALL_MEMBERS_VALUE = "__ALL__";
 
 type ViewMode = "TEAM" | "MINE";
+type RepeatMode = "SPECIFIC_WEEKS" | "UNTIL_PROJECT_END";
 
 interface ModalState {
   mode: "create" | "edit";
@@ -65,8 +72,11 @@ interface ModalState {
   endTime: string;
   endAtMidnight: boolean;
   isRecurring: boolean;
+  repeatMode: RepeatMode;
+  repeatWeeks: string;
   note: string;
   scope: ScheduleRecurrenceScope;
+  errorMessage: string | null;
 }
 
 function getShortMemberName(fullName: string): string {
@@ -78,6 +88,11 @@ function getShortMemberName(fullName: string): string {
 function formatShortDdMm(ymd: string): string {
   const [, month, day] = ymd.split("-");
   return `${day}/${month}`;
+}
+
+function getHcmCurrentMinutes(nowMs: number): number {
+  const d = new Date(nowMs + HCM_UTC_OFFSET_MS);
+  return d.getUTCHours() * 60 + d.getUTCMinutes();
 }
 
 const SCOPE_OPTIONS: ReadonlyArray<{
@@ -124,6 +139,7 @@ export function ProjectScheduleClient({
   const [modal, setModal] = React.useState<ModalState | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
 
+  const referenceNowMs = React.useMemo(() => Date.parse(schedule.nowIso), [schedule.nowIso]);
   const effectiveShowNightHours = showNightHours || hasNightEntries;
   const isArchived = projectStatus === ProjectStatus.ARCHIVED;
   const canCreate = schedule.capabilities.canCreateOwn && !isArchived;
@@ -157,21 +173,36 @@ export function ProjectScheduleClient({
 
   function openCreateModal(dateYmd: string, startMinute = 480, endMinute = 600) {
     if (!canCreate) return;
+
+    let effectiveStartMinute = startMinute;
+    if (dateYmd === schedule.todayYmd) {
+      const nowMinute = getHcmCurrentMinutes(referenceNowMs);
+      if (effectiveStartMinute <= nowMinute) {
+        effectiveStartMinute = Math.min(endMinute - 1, nowMinute + 1);
+      }
+    }
+
     const isMidnight = endMinute >= 1440;
+    const safeDate = dateYmd > schedule.projectEndDate ? schedule.projectEndDate : dateYmd;
+
     setModal({
       mode: "create",
-      date: dateYmd,
-      startTime: minutesToHhmm(startMinute),
+      date: safeDate,
+      startTime: minutesToHhmm(effectiveStartMinute),
       endTime: isMidnight ? "23:59" : minutesToHhmm(endMinute),
       endAtMidnight: isMidnight,
       isRecurring: false,
+      repeatMode: "SPECIFIC_WEEKS",
+      repeatWeeks: "4",
       note: "",
       scope: "ALL_SERIES",
+      errorMessage: null,
     });
   }
 
   function openEditModal(occ: ScheduleOccurrenceDTO) {
     const isMidnight = occ.endMinute >= 1440;
+    const isUntilProjectEnd = occ.repeatUntil === schedule.projectEndDate;
     setModal({
       mode: "edit",
       occurrence: occ,
@@ -180,8 +211,14 @@ export function ProjectScheduleClient({
       endTime: isMidnight ? "23:59" : occ.endTime,
       endAtMidnight: isMidnight,
       isRecurring: occ.isRecurring,
+      repeatMode:
+        occ.isRecurring && isUntilProjectEnd && !occ.repeatWeeks
+          ? "UNTIL_PROJECT_END"
+          : "SPECIFIC_WEEKS",
+      repeatWeeks: String(occ.repeatWeeks ?? 4),
       note: occ.note ?? "",
       scope: occ.isRecurring ? "THIS_WEEK" : "ALL_SERIES",
+      errorMessage: null,
     });
   }
 
@@ -190,6 +227,22 @@ export function ProjectScheduleClient({
     if (!modal) return;
 
     const effectiveEndTime = modal.endAtMidnight ? "24:00" : modal.endTime;
+    const parsedRepeatWeeks =
+      modal.isRecurring && modal.repeatMode === "SPECIFIC_WEEKS"
+        ? Number.parseInt(modal.repeatWeeks, 10)
+        : null;
+
+    if (
+      modal.isRecurring &&
+      modal.repeatMode === "SPECIFIC_WEEKS" &&
+      (!Number.isInteger(parsedRepeatWeeks) || (parsedRepeatWeeks ?? 0) < 1)
+    ) {
+      setModal({
+        ...modal,
+        errorMessage: "Vui lòng nhập số tuần lặp lại hợp lệ (từ 1 tuần trở lên).",
+      });
+      return;
+    }
 
     setSubmitting(true);
     if (modal.mode === "create") {
@@ -198,11 +251,13 @@ export function ProjectScheduleClient({
         startTime: modal.startTime,
         endTime: effectiveEndTime,
         isRecurring: modal.isRecurring,
+        repeatWeeks: modal.isRecurring ? parsedRepeatWeeks : null,
         note: modal.note.trim() || null,
       });
       setSubmitting(false);
 
       if (!res.ok) {
+        setModal({ ...modal, errorMessage: res.error.message });
         toast.error(res.error.message);
         return;
       }
@@ -225,11 +280,13 @@ export function ProjectScheduleClient({
       startTime: modal.startTime,
       endTime: effectiveEndTime,
       isRecurring: modal.isRecurring,
+      repeatWeeks: modal.isRecurring ? parsedRepeatWeeks : null,
       note: modal.note.trim() || null,
     });
     setSubmitting(false);
 
     if (!res.ok) {
+      setModal({ ...modal, errorMessage: res.error.message });
       toast.error(res.error.message);
       return;
     }
@@ -250,6 +307,7 @@ export function ProjectScheduleClient({
     setSubmitting(false);
 
     if (!res.ok) {
+      setModal({ ...modal, errorMessage: res.error.message });
       toast.error(res.error.message);
       return;
     }
@@ -264,6 +322,24 @@ export function ProjectScheduleClient({
   const canDeleteModal =
     modal?.mode === "edit" && modal.occurrence !== undefined && modal.occurrence.canDelete;
 
+  const previewRepeatEndYmd = React.useMemo(() => {
+    if (!modal || !modal.isRecurring || modal.repeatMode !== "SPECIFIC_WEEKS") {
+      return null;
+    }
+    const weeks = Number.parseInt(modal.repeatWeeks, 10);
+    if (!Number.isInteger(weeks) || weeks < 1 || !modal.date) {
+      return null;
+    }
+    return computeRepeatUntilFromWeeks(modal.date, weeks);
+  }, [modal]);
+
+  const isPreviewExceedingProject =
+    previewRepeatEndYmd !== null && previewRepeatEndYmd > schedule.projectEndDate;
+
+  const defaultCreateDate =
+    schedule.todayYmd > schedule.projectEndDate ? schedule.projectEndDate : schedule.todayYmd;
+  const canOpenHeaderCreate = canCreate && schedule.todayYmd <= schedule.projectEndDate;
+
   return (
     <div className="space-y-4">
       {isArchived && (
@@ -271,7 +347,7 @@ export function ProjectScheduleClient({
           <AlertTitle>Project đã lưu trữ (Archived · Chỉ xem)</AlertTitle>
           <AlertDescription>
             Project đang ở trạng thái ARCHIVED nên toàn bộ thao tác thêm, sửa, xóa lịch bận đã được
-            khóa.
+            khóa và các lịch từ thời điểm lưu trữ trở đi đã được xóa.
           </AlertDescription>
         </Alert>
       )}
@@ -288,8 +364,8 @@ export function ProjectScheduleClient({
                 </span>
               </CardTitle>
               <CardDescription className="mt-1">
-                Click trực tiếp vào bất kỳ ô 2 giờ nào để ghi chú nhanh khoảng thời gian bận trong
-                ngày.
+                Click trực tiếp vào ô 2 giờ từ hiện tại trở đi để ghi chú lịch bận (giới hạn đến hạn
+                chót Project: <strong>{formatHcmDateVi(schedule.projectEndDate)}</strong>).
               </CardDescription>
             </div>
 
@@ -329,11 +405,11 @@ export function ProjectScheduleClient({
                 }}
                 className="h-8 w-auto text-xs"
               />
-              {canCreate && (
+              {canOpenHeaderCreate && (
                 <Button
                   type="button"
                   size="sm"
-                  onClick={() => openCreateModal(schedule.todayYmd, 480, 600)}
+                  onClick={() => openCreateModal(defaultCreateDate, 480, 600)}
                 >
                   <Plus className="h-4 w-4" />
                   <span>Thêm lịch bận</span>
@@ -411,10 +487,16 @@ export function ProjectScheduleClient({
 
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] border-collapse text-left text-xs">
+            <table className="w-full min-w-[920px] table-fixed border-collapse text-left text-xs">
+              <colgroup>
+                <col className="w-28" />
+                {schedule.days.map((day) => (
+                  <col key={day.date} />
+                ))}
+              </colgroup>
               <thead>
                 <tr className="border-b border-border bg-muted/40">
-                  <th className="w-28 border-r border-border px-3 py-2.5 font-semibold text-muted-foreground">
+                  <th className="border-r border-border px-3 py-2.5 font-semibold text-muted-foreground">
                     Khung giờ
                   </th>
                   {schedule.days.map((day) => {
@@ -423,14 +505,16 @@ export function ProjectScheduleClient({
                       <th
                         key={day.date}
                         className={cn(
-                          "min-w-[110px] border-r border-border px-2.5 py-2.5 last:border-r-0",
+                          "border-r border-border px-2.5 py-2.5 last:border-r-0",
                           isToday && "bg-primary/10"
                         )}
                       >
                         <div className="flex items-center justify-between gap-1">
-                          <span className="font-semibold text-foreground">{day.fullLabel}</span>
+                          <span className="truncate font-semibold text-foreground">
+                            {day.fullLabel}
+                          </span>
                           {isToday && (
-                            <Badge variant="default" className="px-1.5 py-0 text-[10px]">
+                            <Badge variant="default" className="shrink-0 px-1.5 py-0 text-[10px]">
                               Hôm nay
                             </Badge>
                           )}
@@ -452,6 +536,14 @@ export function ProjectScheduleClient({
                     </td>
                     {schedule.days.map((day) => {
                       const isToday = day.date === schedule.todayYmd;
+                      const blockEndInstant = hcmDateTimeInstant(
+                        day.date,
+                        minutesToHhmm(block.endMinute)
+                      );
+                      const isPastBlock = blockEndInstant.getTime() <= referenceNowMs;
+                      const isAfterProjectEnd = day.date > schedule.projectEndDate;
+                      const canQuickAddCell = canCreate && !isPastBlock && !isAfterProjectEnd;
+
                       const cellOccurrences = filteredOccurrences.filter(
                         (occ) =>
                           occ.date === day.date &&
@@ -469,19 +561,19 @@ export function ProjectScheduleClient({
                         <td
                           key={`${day.date}-${block.startMinute}`}
                           className={cn(
-                            "group relative min-h-[82px] border-r border-border p-1.5 align-top transition-colors last:border-r-0",
+                            "group relative min-w-0 border-r border-border p-1.5 align-top transition-colors last:border-r-0",
                             isToday && "bg-primary/[0.03]",
-                            canCreate && "hover:bg-accent/35"
+                            canQuickAddCell && "hover:bg-accent/35"
                           )}
                         >
                           <div className="mb-1 flex items-center justify-between gap-1">
                             {showGroupIndicator ? (
                               busyUserCount === 0 ? (
-                                <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
+                                <span className="truncate whitespace-nowrap rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
                                   Cả nhóm rảnh
                                 </span>
                               ) : (
-                                <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:text-amber-300">
+                                <span className="truncate whitespace-nowrap rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:text-amber-300">
                                   {busyUserCount}/{totalTrackableMembers} bận
                                 </span>
                               )
@@ -489,7 +581,7 @@ export function ProjectScheduleClient({
                               <span />
                             )}
 
-                            {canCreate && (
+                            {canQuickAddCell && (
                               <button
                                 type="button"
                                 onClick={() =>
@@ -497,14 +589,14 @@ export function ProjectScheduleClient({
                                 }
                                 title={`Thêm lịch bận ${day.fullLabel} (${block.label})`}
                                 aria-label={`Thêm lịch bận ${day.fullLabel} ${block.label}`}
-                                className="inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded border border-transparent text-muted-foreground opacity-60 transition hover:border-border hover:bg-card hover:text-foreground group-hover:opacity-100"
+                                className="inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border border-transparent text-muted-foreground opacity-60 transition hover:border-border hover:bg-card hover:text-foreground group-hover:opacity-100"
                               >
                                 <Plus className="h-3.5 w-3.5" />
                               </button>
                             )}
                           </div>
 
-                          <div className="space-y-1">
+                          <div className="min-w-0 space-y-1">
                             {cellOccurrences.map((occ) => {
                               const isMine = occ.userId === currentUserId;
                               return (
@@ -513,13 +605,13 @@ export function ProjectScheduleClient({
                                   type="button"
                                   onClick={() => openEditModal(occ)}
                                   className={cn(
-                                    "w-full cursor-pointer rounded border px-2 py-1 text-left transition",
+                                    "block w-full min-w-0 cursor-pointer overflow-hidden rounded border px-2 py-1 text-left transition",
                                     isMine
                                       ? "border-primary/40 bg-primary/10 text-foreground hover:bg-primary/15"
                                       : "border-border bg-secondary/70 text-secondary-foreground hover:bg-secondary"
                                   )}
                                 >
-                                  <div className="flex items-center justify-between gap-1">
+                                  <div className="flex min-w-0 items-center justify-between gap-1">
                                     <span className="truncate text-[11px] font-semibold">
                                       {viewMode === "TEAM"
                                         ? getShortMemberName(occ.userFullName)
@@ -533,11 +625,11 @@ export function ProjectScheduleClient({
                                     )}
                                   </div>
                                   {viewMode === "TEAM" && (
-                                    <p className="font-mono text-[10px] text-muted-foreground">
+                                    <p className="truncate font-mono text-[10px] text-muted-foreground">
                                       {occ.startTime}–{occ.endTime}
                                     </p>
                                   )}
-                                  <p className="line-clamp-2 text-[11px] text-muted-foreground">
+                                  <p className="line-clamp-2 break-words text-[11px] text-muted-foreground">
                                     {occ.note?.trim() || "Bận"}
                                   </p>
                                 </button>
@@ -557,7 +649,7 @@ export function ProjectScheduleClient({
 
       {/* Create / Edit / View Modal */}
       <Dialog open={modal !== null} onOpenChange={(open) => !open && setModal(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           {modal && (
             <form onSubmit={handleSaveModal} className="space-y-4">
               <DialogHeader>
@@ -570,12 +662,19 @@ export function ProjectScheduleClient({
                 </DialogTitle>
                 <DialogDescription>
                   {modal.mode === "create"
-                    ? "Ghi chú khoảng thời gian bạn bận trong ngày để cả nhóm nắm được lịch chung."
+                    ? `Ghi chú khoảng thời gian bạn bận (từ hiện tại đến hạn Project ${formatHcmDateVi(schedule.projectEndDate)}).`
                     : isEditingReadOnly
                       ? "Bạn đang xem ghi chú lịch bận của thành viên khác."
-                      : "Cập nhật khoảng thời gian, lặp lại hàng tuần hoặc xóa ghi chú này."}
+                      : "Cập nhật khoảng thời gian, số tuần lặp lại hoặc xóa ghi chú này."}
                 </DialogDescription>
               </DialogHeader>
+
+              {modal.errorMessage && (
+                <Alert variant="destructive">
+                  <AlertTitle>Không thể lưu lịch bận</AlertTitle>
+                  <AlertDescription>{modal.errorMessage}</AlertDescription>
+                </Alert>
+              )}
 
               <div className="space-y-3">
                 <div className="space-y-1.5">
@@ -583,6 +682,8 @@ export function ProjectScheduleClient({
                   <Input
                     id="schedule-date"
                     type="date"
+                    min={modal.mode === "create" ? schedule.todayYmd : undefined}
+                    max={schedule.projectEndDate}
                     value={modal.date}
                     onChange={(e) => setModal({ ...modal, date: e.target.value })}
                     disabled={
@@ -639,31 +740,107 @@ export function ProjectScheduleClient({
                   </div>
                 </div>
 
-                <label
-                  className={cn(
-                    "flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm",
-                    isEditingReadOnly ? "opacity-70" : "cursor-pointer hover:bg-accent/40"
-                  )}
-                >
-                  <input
-                    type="checkbox"
-                    checked={modal.isRecurring}
-                    disabled={
-                      isEditingReadOnly ||
-                      (modal.mode === "edit" &&
-                        Boolean(modal.occurrence?.isRecurring) &&
-                        modal.scope === "THIS_WEEK")
-                    }
-                    onChange={(e) => setModal({ ...modal, isRecurring: e.target.checked })}
-                    className="h-4 w-4 rounded border-input"
-                  />
-                  <div>
-                    <p className="font-medium text-foreground">Lặp lại hàng tuần</p>
-                    <p className="text-xs text-muted-foreground">
-                      Tự động lặp lại vào đúng thứ này ở các tuần tiếp theo.
-                    </p>
-                  </div>
-                </label>
+                <div className="space-y-2 rounded-md border border-border p-3">
+                  <label
+                    className={cn(
+                      "flex items-center gap-2 text-sm",
+                      isEditingReadOnly ? "opacity-70" : "cursor-pointer"
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={modal.isRecurring}
+                      disabled={
+                        isEditingReadOnly ||
+                        (modal.mode === "edit" &&
+                          Boolean(modal.occurrence?.isRecurring) &&
+                          modal.scope === "THIS_WEEK")
+                      }
+                      onChange={(e) => setModal({ ...modal, isRecurring: e.target.checked })}
+                      className="h-4 w-4 rounded border-input"
+                    />
+                    <div>
+                      <p className="font-medium text-foreground">Lặp lại hàng tuần</p>
+                      <p className="text-xs text-muted-foreground">
+                        Tự động lặp lại vào đúng thứ này theo số tuần bạn chọn hoặc đến hết Project.
+                      </p>
+                    </div>
+                  </label>
+
+                  {modal.isRecurring &&
+                    !(
+                      modal.mode === "edit" &&
+                      modal.occurrence?.isRecurring &&
+                      modal.scope === "THIS_WEEK"
+                    ) && (
+                      <div className="mt-2 space-y-2 border-t border-border pt-2.5 text-xs">
+                        <label className="flex cursor-pointer items-center gap-2">
+                          <input
+                            type="radio"
+                            name="schedule-repeat-mode"
+                            value="SPECIFIC_WEEKS"
+                            checked={modal.repeatMode === "SPECIFIC_WEEKS"}
+                            disabled={isEditingReadOnly}
+                            onChange={() => setModal({ ...modal, repeatMode: "SPECIFIC_WEEKS" })}
+                          />
+                          <span className="font-medium text-foreground">
+                            Áp dụng trong số tuần cụ thể (tính từ tuần này):
+                          </span>
+                        </label>
+
+                        {modal.repeatMode === "SPECIFIC_WEEKS" && (
+                          <div className="ml-6 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <Input
+                                id="schedule-repeat-weeks"
+                                type="number"
+                                min={1}
+                                max={260}
+                                value={modal.repeatWeeks}
+                                disabled={isEditingReadOnly}
+                                onChange={(e) =>
+                                  setModal({ ...modal, repeatWeeks: e.target.value })
+                                }
+                                className="h-8 w-24 text-xs"
+                              />
+                              <span className="text-muted-foreground">
+                                tuần (VD: 3, 8, 10 tuần)
+                              </span>
+                            </div>
+                            {previewRepeatEndYmd && (
+                              <p
+                                className={cn(
+                                  "text-[11px]",
+                                  isPreviewExceedingProject
+                                    ? "font-medium text-destructive"
+                                    : "text-muted-foreground"
+                                )}
+                              >
+                                {isPreviewExceedingProject
+                                  ? `Vượt quá hạn chót Project (${formatHcmDateVi(schedule.projectEndDate)}) — lịch sẽ đến ngày ${formatHcmDateVi(previewRepeatEndYmd)}.`
+                                  : `Áp dụng đến ngày ${formatHcmDateVi(previewRepeatEndYmd)}.`}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        <label className="flex cursor-pointer items-center gap-2">
+                          <input
+                            type="radio"
+                            name="schedule-repeat-mode"
+                            value="UNTIL_PROJECT_END"
+                            checked={modal.repeatMode === "UNTIL_PROJECT_END"}
+                            disabled={isEditingReadOnly}
+                            onChange={() => setModal({ ...modal, repeatMode: "UNTIL_PROJECT_END" })}
+                          />
+                          <span className="font-medium text-foreground">
+                            Lặp lại đến hết thời hạn Project (
+                            {formatHcmDateVi(schedule.projectEndDate)})
+                          </span>
+                        </label>
+                      </div>
+                    )}
+                </div>
 
                 <div className="space-y-1.5">
                   <Label htmlFor="schedule-note">Ghi chú lý do bận (Tùy chọn)</Label>

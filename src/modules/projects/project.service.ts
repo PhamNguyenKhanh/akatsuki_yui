@@ -9,6 +9,7 @@ import { PERMISSIONS } from "@/modules/authorization/constants";
 import { assertPermission, hasPermission } from "@/modules/authorization/policy.service";
 import { schedulePostCommitEmailDispatch } from "@/modules/notifications/notification-delivery.service";
 import { recordProjectMemberAddedNotification } from "@/modules/notifications/notification-domain-events";
+import { scheduleRepository } from "@/modules/schedule/schedule.repository";
 import { taskAssignmentGuard } from "@/modules/project-members/task-assignment-guard";
 import {
   assertActiveUsersExist,
@@ -537,13 +538,16 @@ export async function archiveProjectService(
       throw conflictError("INVALID_STATUS_TRANSITION", "Project đã ở trạng thái ARCHIVED.");
     }
 
+    const archivedAt = new Date();
     await tx.project.update({
       where: { id: current.id },
       data: {
         status: ProjectStatus.ARCHIVED,
-        archivedAt: new Date(),
+        archivedAt,
       },
     });
+
+    await scheduleRepository.purgeScheduleEntriesFromArchive(current.id, archivedAt, tx);
 
     await tx.auditLog.create({
       data: {
