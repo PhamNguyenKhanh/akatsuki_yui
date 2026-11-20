@@ -20,6 +20,7 @@ import {
 import {
   mapProjectToDTO,
   projectRepository,
+  type ActiveProjectSummaryDTO,
   type ProjectCandidateUserDTO,
   type ProjectDTO,
 } from "@/modules/projects/project.repository";
@@ -35,6 +36,19 @@ import {
   type UpdateProjectInput,
 } from "@/modules/projects/project.schema";
 import type { AuthContext } from "@/types/auth";
+
+export async function getAccessibleActiveProjectSummaryService(
+  actor: AuthContext
+): Promise<ActiveProjectSummaryDTO | null> {
+  if (!hasPermission(actor, PERMISSIONS.PROJECT_READ)) {
+    return null;
+  }
+
+  return projectRepository.findAccessibleActiveProject({
+    adminViewAll: isWorkspaceAdmin(actor),
+    userId: actor.userId,
+  });
+}
 
 export async function listProjectsService(
   actor: AuthContext,
@@ -644,7 +658,7 @@ export async function restoreProjectService(
       throw notFoundError("Không tìm thấy Project sau khi khôi phục.");
     }
 
-      logger.info("Project restored", {
+    logger.info("Project restored", {
       actorId: actor.userId,
       projectId: restored.id,
       targetStatus,
