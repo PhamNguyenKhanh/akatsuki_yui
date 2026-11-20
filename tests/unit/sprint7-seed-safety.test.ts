@@ -166,7 +166,7 @@ function createInMemorySeedDb(initial?: {
 }
 
 describe("Sprint 7 Security — Permission-Preserving & Non-Destructive Seed (DEC-067)", () => {
-  it("upserts all 28 permissions and populates defaults ONLY for newly created roles", async () => {
+  it("upserts all 32 permissions and populates defaults ONLY for newly created roles", async () => {
     const store = createInMemorySeedDb();
     const res = await runSafeSeed(store.db, {
       SEED_ADMIN_EMAIL: "admin@akatsuki.local",
@@ -174,8 +174,8 @@ describe("Sprint 7 Security — Permission-Preserving & Non-Destructive Seed (DE
       SEED_ADMIN_NAME: "Initial Admin",
     });
 
-    expect(res.permissionCount).toBe(28);
-    expect(PERMISSION_CATALOG).toHaveLength(28);
+    expect(res.permissionCount).toBe(32);
+    expect(PERMISSION_CATALOG).toHaveLength(32);
     expect(res.createdRoles.sort()).toEqual(Object.keys(ROLE_DEFINITIONS).sort());
     expect(res.adminResult.created).toBe(true);
     expect(store.users.get("admin@akatsuki.local")?.status).toBe(UserStatus.ACTIVE);

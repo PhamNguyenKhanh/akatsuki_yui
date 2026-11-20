@@ -6,11 +6,13 @@ import {
   ArrowLeft,
   BarChart3,
   Calendar,
+  CalendarClock,
   ExternalLink,
   History,
   Layers,
   Target,
   UserCheck,
+  Video,
 } from "lucide-react";
 import { ProjectDetailActions } from "@/components/projects/project-detail-actions";
 import { ProjectMembersPanel } from "@/components/projects/project-members-panel";
@@ -70,6 +72,8 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
   const canReadTasks = hasPermission(actor, PERMISSIONS.TASK_READ);
   const canReadSprints = hasPermission(actor, PERMISSIONS.SPRINT_READ);
   const canReadDocuments = hasPermission(actor, PERMISSIONS.DOCUMENT_READ);
+  const canReadSchedule = hasPermission(actor, PERMISSIONS.SCHEDULE_READ);
+  const canReadMeetings = hasPermission(actor, PERMISSIONS.MEETING_READ);
   const canReadReports = hasPermission(actor, PERMISSIONS.REPORT_READ);
   const canReadActivity = hasPermission(actor, PERMISSIONS.ACTIVITY_READ);
   const canManageSprint = hasPermission(actor, PERMISSIONS.SPRINT_MANAGE) && isAdminOrLeader;
@@ -285,11 +289,27 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
         />
       )}
 
-      {(canReadReports || canReadActivity) && (
+      {(canReadSchedule || canReadMeetings || canReadReports || canReadActivity) && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
           <span className="text-sm font-medium text-slate-800">
-            Phân tích &amp; Nhật ký Project:
+            Điều phối, Phân tích &amp; Nhật ký Project:
           </span>
+          {canReadSchedule && (
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/projects/${project.id}/schedule`}>
+                <CalendarClock className="h-4 w-4" />
+                Lịch bận (Schedule)
+              </Link>
+            </Button>
+          )}
+          {canReadMeetings && (
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/projects/${project.id}/meetings`}>
+                <Video className="h-4 w-4" />
+                Cuộc họp (Meet)
+              </Link>
+            </Button>
+          )}
           {canReadReports && (
             <Button asChild size="sm" variant="outline">
               <Link href={`/projects/${project.id}/reports`}>
