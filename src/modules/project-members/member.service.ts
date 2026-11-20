@@ -338,7 +338,7 @@ export async function removeProjectMemberService(
     if (project.leaderId === validUserId) {
       throw conflictError(
         "CONFLICT",
-        "Không thể xóa Leader hiện tại của Project. Hãy đổi Leader sang thành viên khác trước (BR-PROJ-002)."
+        "Không thể xóa Leader hiện tại của Project. Hãy đổi Leader sang thành viên khác trước."
       );
     }
 

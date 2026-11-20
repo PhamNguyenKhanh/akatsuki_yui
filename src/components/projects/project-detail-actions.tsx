@@ -129,7 +129,7 @@ export function ProjectDetailActions({
               <AlertDialogHeader>
                 <AlertDialogTitle>Kích hoạt Project sang ACTIVE?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Workspace chỉ cho phép duy nhất 01 Project ở trạng thái ACTIVE (BR-PROJ-004). Nếu
+                  Workspace chỉ cho phép duy nhất 01 Project ở trạng thái ACTIVE. Nếu
                   đang có Project khác ACTIVE, thao tác này sẽ bị từ chối cho đến khi Project kia
                   được Archive.
                 </AlertDialogDescription>
@@ -161,7 +161,7 @@ export function ProjectDetailActions({
                 <AlertDialogTitle>Lưu trữ Project &ldquo;{project.name}&rdquo;?</AlertDialogTitle>
                 <AlertDialogDescription>
                   Toàn bộ dữ liệu và lịch sử sẽ được giữ nguyên, nhưng sau khi Archive không thể
-                  chỉnh sửa thông tin hoặc thêm/xóa thành viên (BR-PROJ-008). Chỉ Admin mới có thể
+                  chỉnh sửa thông tin hoặc thêm/xóa thành viên. Chỉ Admin mới có thể
                   khôi phục lại.
                 </AlertDialogDescription>
               </AlertDialogHeader>

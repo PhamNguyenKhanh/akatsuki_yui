@@ -64,7 +64,7 @@ export default async function NewSprintPage({ params }: NewSprintPageProps) {
         <Alert variant="destructive">
           <AlertTitle>Project đang ở trạng thái ARCHIVED</AlertTitle>
           <AlertDescription>
-            Theo quy định BR-PROJ-008, không thể tạo Sprint mới trong Project đã Archive. Admin cần
+            Theo quy định, không thể tạo Sprint mới trong Project đã Archive. Admin cần
             khôi phục Project trước khi lập kế hoạch Sprint mới.
           </AlertDescription>
         </Alert>

@@ -79,7 +79,7 @@ export default async function NewTaskPage({ params }: NewTaskPageProps) {
         <Alert variant="destructive">
           <AlertTitle>Project đang ở trạng thái ARCHIVED</AlertTitle>
           <AlertDescription>
-            Theo quy định BR-PROJ-008, không thể tạo Task mới trong Project đã Archive. Admin cần
+            Theo quy định, không thể tạo Task mới trong Project đã Archive. Admin cần
             khôi phục Project về CREATED hoặc ACTIVE trước.
           </AlertDescription>
         </Alert>

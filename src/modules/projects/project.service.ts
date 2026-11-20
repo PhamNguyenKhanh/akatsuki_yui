@@ -71,7 +71,6 @@ export async function createProjectService(
   assertPermission(actor, PERMISSIONS.PROJECT_CREATE);
   const input = createProjectSchema.parse(rawInput);
 
-  // BR-PROJ-003: Non-Admin Leader creators automatically become the Project Leader.
   const effectiveLeaderId =
     isWorkspaceAdmin(actor) && input.leaderId ? input.leaderId : actor.userId;
 
@@ -235,7 +234,7 @@ export async function updateProjectService(
     if (current.status === ProjectStatus.ARCHIVED) {
       throw conflictError(
         "PROJECT_ARCHIVED",
-        "Project đang ở trạng thái ARCHIVED và bị khóa chỉnh sửa thông tin (BR-PROJ-008)."
+        "Project đang ở trạng thái ARCHIVED và bị khóa chỉnh sửa thông tin."
       );
     }
 
@@ -450,7 +449,7 @@ export async function activateProjectService(
       if (conflicting) {
         throw conflictError(
           "PROJECT_ALREADY_ACTIVE",
-          `Workspace đang có Project ACTIVE ("${conflicting.name}"). Chỉ được phép tối đa một Project ACTIVE tại một thời điểm (BR-PROJ-004).`
+          `Workspace đang có Project ACTIVE ("${conflicting.name}"). Chỉ được phép tối đa một Project ACTIVE tại một thời điểm.`
         );
       }
 
@@ -494,7 +493,7 @@ export async function activateProjectService(
     if (isPrismaUniqueViolation(error, ["Project_single_active_idx", "status"])) {
       throw conflictError(
         "PROJECT_ALREADY_ACTIVE",
-        "Workspace đã có Project đang ACTIVE. Chỉ được phép tối đa một Project ACTIVE (BR-PROJ-004)."
+        "Workspace đã có Project đang ACTIVE. Chỉ được phép tối đa một Project ACTIVE."
       );
     }
     throw error;
@@ -655,7 +654,7 @@ export async function restoreProjectService(
     if (isPrismaUniqueViolation(error, ["Project_single_active_idx", "status"])) {
       throw conflictError(
         "PROJECT_ALREADY_ACTIVE",
-        "Không thể khôi phục sang ACTIVE vì Workspace đã có Project đang ACTIVE (BR-PROJ-004)."
+        "Không thể khôi phục sang ACTIVE vì Workspace đã có Project đang ACTIVE."
       );
     }
     throw error;
@@ -702,7 +701,7 @@ export async function listProjectUserCandidatesService(
   } else {
     assertPermission(actor, PERMISSIONS.PROJECT_CREATE);
     if (query.kind === "leader" && !isWorkspaceAdmin(actor)) {
-      throw forbiddenError("Chỉ Admin mới có quyền chọn Project Leader khác (BR-PROJ-003).");
+      throw forbiddenError("Chỉ Admin mới có quyền chọn Project Leader khác.");
     }
     if (query.kind === "member") {
       excludeUserIds = [actor.userId];
