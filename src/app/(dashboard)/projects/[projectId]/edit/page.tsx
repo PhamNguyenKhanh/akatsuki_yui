@@ -81,7 +81,7 @@ export default async function EditProjectPage({ params }: EditProjectPageProps) 
         <Alert variant="destructive">
           <AlertTitle>Project đang ở trạng thái ARCHIVED</AlertTitle>
           <AlertDescription>
-            Theo quy định BR-PROJ-008, Project đã Archive không được phép chỉnh sửa thông tin. Chỉ
+            Theo quy định, Project đã Archive không được phép chỉnh sửa thông tin. Chỉ
             Admin mới có thể khôi phục Project từ trang chi tiết trước khi cập nhật.
           </AlertDescription>
         </Alert>

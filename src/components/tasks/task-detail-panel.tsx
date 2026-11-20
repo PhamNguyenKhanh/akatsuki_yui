@@ -165,7 +165,7 @@ export function TaskDetailPanel({
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Project đã ở trạng thái ARCHIVED</AlertTitle>
           <AlertDescription>
-            Toàn bộ thông tin Task chỉ được phép xem (read-only) theo quy định BR-PROJ-008.
+            Toàn bộ thông tin Task chỉ được phép xem (read-only).
           </AlertDescription>
         </Alert>
       )}

@@ -39,7 +39,7 @@ export function assertProjectNotArchivedForTaskMutation(projectStatus: ProjectSt
   if (projectStatus === ProjectStatus.ARCHIVED) {
     throw conflictError(
       "PROJECT_ARCHIVED",
-      "Project đã ở trạng thái ARCHIVED, chỉ được xem dữ liệu Task (BR-PROJ-008)."
+      "Project đã ở trạng thái ARCHIVED, chỉ được xem dữ liệu Task."
     );
   }
 }

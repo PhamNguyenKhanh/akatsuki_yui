@@ -41,7 +41,7 @@ export function assertProjectNotArchivedForDocumentMutation(status: ProjectStatu
   if (status === ProjectStatus.ARCHIVED) {
     throw conflictError(
       "PROJECT_ARCHIVED",
-      "Project đã ở trạng thái ARCHIVED. Tài liệu trong Project lưu trữ chỉ được phép xem (BR-DOC-004)."
+      "Project đã ở trạng thái ARCHIVED. Tài liệu trong Project lưu trữ chỉ được phép xem."
     );
   }
 }
@@ -209,7 +209,7 @@ export async function assertSprintBelongsToDocumentProject(
   if (sprint.projectId !== projectId) {
     throw conflictError(
       "CROSS_PROJECT_SPRINT_MISMATCH",
-      "Sprint được liên kết phải thuộc cùng một Project với tài liệu (BR-DOC-003).",
+      "Sprint được liên kết phải thuộc cùng một Project với tài liệu.",
       [{ field: "sprintId", message: "Sprint thuộc về một Project khác." }]
     );
   }

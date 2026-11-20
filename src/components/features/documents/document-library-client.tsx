@@ -390,7 +390,7 @@ export function DocumentLibraryClient({
           <AlertTitle>Project đang ở trạng thái Lưu trữ (ARCHIVED)</AlertTitle>
           <AlertDescription>
             Thư viện tài liệu của Project này đang ở chế độ chỉ đọc (Read-only). Mọi thao tác thêm,
-            cập nhật hoặc xóa tài liệu đã bị khóa theo quy tắc BR-DOC-004.
+            cập nhật hoặc xóa tài liệu đã bị khóa theo quy tắc.
           </AlertDescription>
         </Alert>
       )}
@@ -680,7 +680,7 @@ export function DocumentLibraryClient({
             </DialogTitle>
             <DialogDescription>
               Chỉ chấp nhận liên kết chính thức từ <code>https://drive.google.com</code> hoặc{" "}
-              <code>https://docs.google.com</code> (BR-DOC-002).
+              <code>https://docs.google.com</code>.
             </DialogDescription>
           </DialogHeader>
 
