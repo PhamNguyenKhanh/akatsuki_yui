@@ -192,7 +192,7 @@ export function ProjectDetailActions({
                 <AlertDialogTitle>Khôi phục Project đã Archive</AlertDialogTitle>
                 <AlertDialogDescription>
                   Chọn trạng thái đích sau khi khôi phục Project &ldquo;{project.name}&rdquo;. Khôi
-                  phục sang ACTIVE yêu cầu Workspace hiện chưa có Project ACTIVE nào khác (DEC-008).
+                  phục sang ACTIVE yêu cầu Workspace hiện chưa có Project ACTIVE nào khác.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <div className="space-y-1.5 py-2">

@@ -110,7 +110,7 @@ export function TaskDependenciesCard({
         </CardTitle>
         <CardDescription>
           Task vẫn có thể bắt đầu thực hiện, nhưng chỉ được Approve lên DONE khi mọi Task tiền điều
-          kiện đã DONE (DEC-005). Không cho phép tạo chu trình.
+          kiện đã DONE. Không cho phép tạo chu trình.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

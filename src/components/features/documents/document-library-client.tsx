@@ -816,7 +816,7 @@ export function DocumentLibraryClient({
             <AlertDialogTitle>Xác nhận xóa tài liệu khỏi hệ thống?</AlertDialogTitle>
             <AlertDialogDescription>
               Bạn đang xóa bản ghi tài liệu <strong>{deletingDoc?.title}</strong> khỏi thư viện
-              Project. Tệp gốc trên Google Drive sẽ <strong>không</strong> bị ảnh hưởng (DEC-036).
+              Project. Tệp gốc trên Google Drive sẽ <strong>không</strong> bị ảnh hưởng.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deleteError && (

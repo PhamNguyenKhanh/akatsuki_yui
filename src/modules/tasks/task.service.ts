@@ -285,7 +285,7 @@ export async function updateTaskService(
       for (const [key, value] of Object.entries(rawRecord)) {
         if (value !== undefined && LEADER_ONLY_TASK_UPDATE_FIELDS.has(key)) {
           throw forbiddenError(
-            "Member chỉ được phép cập nhật trạng thái TODO -> IN_PROGRESS, liên kết tham chiếu và ghi chú tiến độ (DEC-015)."
+            "Member chỉ được phép cập nhật trạng thái TODO -> IN_PROGRESS, liên kết tham chiếu và ghi chú tiến độ."
           );
         }
       }

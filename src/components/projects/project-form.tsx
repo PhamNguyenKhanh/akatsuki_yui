@@ -254,7 +254,7 @@ export function ProjectForm({
         </CardTitle>
         <CardDescription>
           {mode === "create"
-            ? "Project mới được tạo ở trạng thái CREATED. Template và Giảng viên hướng dẫn là thông tin tùy chọn (DEC-001, DEC-002)."
+            ? "Project mới được tạo ở trạng thái CREATED. Template và Giảng viên hướng dẫn là thông tin tùy chọn."
             : "Cập nhật thông tin tổng quan, thời gian, công nghệ và Giảng viên hướng dẫn."}
         </CardDescription>
       </CardHeader>
