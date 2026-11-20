@@ -6,11 +6,16 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Bell,
+  CalendarRange,
+  CheckSquare,
+  ChevronDown,
   FileText,
   FolderKanban,
   History,
+  Kanban,
   Layers,
   LayoutDashboard,
+  ListTodo,
   LogOut,
   MailCheck,
   Menu,
@@ -27,6 +32,18 @@ import { cn } from "@/lib/utils";
 import { logoutAction } from "@/modules/auth/auth.actions";
 import { PERMISSIONS } from "@/modules/authorization/constants";
 import type { AuthContext } from "@/types/auth";
+
+export interface SidebarActiveProject {
+  id: string;
+  name: string;
+}
+
+export interface SidebarSubNavItem {
+  key: "tasks" | "sprints" | "kanban" | "backlog";
+  label: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
 
 interface NavItem {
   label: string;
@@ -103,17 +120,263 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
+interface ActiveProjectQuickLinkSpec {
+  key: SidebarSubNavItem["key"];
+  label: string;
+  segment: string;
+  icon: React.ComponentType<{ className?: string }>;
+  requiredPermissions: readonly string[];
+}
+
+const ACTIVE_PROJECT_QUICK_LINK_SPECS: readonly ActiveProjectQuickLinkSpec[] = [
+  {
+    key: "tasks",
+    label: "Quản lý Task",
+    segment: "tasks",
+    icon: CheckSquare,
+    requiredPermissions: [PERMISSIONS.TASK_READ],
+  },
+  {
+    key: "sprints",
+    label: "Quản lý Sprint",
+    segment: "sprints",
+    icon: CalendarRange,
+    requiredPermissions: [PERMISSIONS.SPRINT_READ],
+  },
+  {
+    key: "kanban",
+    label: "Kanban Board",
+    segment: "kanban",
+    icon: Kanban,
+    requiredPermissions: [PERMISSIONS.TASK_READ, PERMISSIONS.SPRINT_READ],
+  },
+  {
+    key: "backlog",
+    label: "Product Backlog",
+    segment: "backlog",
+    icon: ListTodo,
+    requiredPermissions: [PERMISSIONS.TASK_READ, PERMISSIONS.SPRINT_READ],
+  },
+];
+
+/** Builds permission-filtered quick navigation links for the currently ACTIVE project. */
+export function buildActiveProjectSubItems(
+  activeProject: SidebarActiveProject | null | undefined,
+  permissions: readonly string[]
+): SidebarSubNavItem[] {
+  if (!activeProject) return [];
+
+  return ACTIVE_PROJECT_QUICK_LINK_SPECS.filter((spec) =>
+    spec.requiredPermissions.every((perm) => permissions.includes(perm))
+  ).map((spec) => ({
+    key: spec.key,
+    label: spec.label,
+    href: `/projects/${activeProject.id}/${spec.segment}`,
+    icon: spec.icon,
+  }));
+}
+
+export function isSidebarPathMatch(pathname: string, href: string): boolean {
+  if (href === "/dashboard") return pathname === href;
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function SidebarNav({
+  idPrefix,
+  pathname,
+  visibleNavItems,
+  activeProject,
+  activeProjectSubItems,
+  projectsMenuOpen,
+  onToggleProjectsMenu,
+  onNavigate,
+}: {
+  idPrefix: "desktop" | "mobile";
+  pathname: string;
+  visibleNavItems: NavItem[];
+  activeProject: SidebarActiveProject | null;
+  activeProjectSubItems: SidebarSubNavItem[];
+  projectsMenuOpen: boolean;
+  onToggleProjectsMenu: () => void;
+  onNavigate: () => void;
+}) {
+  const activeProjectOverviewHref = activeProject ? `/projects/${activeProject.id}` : null;
+  const isOverviewActive =
+    activeProjectOverviewHref !== null && pathname === activeProjectOverviewHref;
+  const isSubItemActive = activeProjectSubItems.some((sub) =>
+    isSidebarPathMatch(pathname, sub.href)
+  );
+  const isChildRouteActive = isOverviewActive || isSubItemActive;
+
+  return (
+    <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="Điều hướng chính">
+      {visibleNavItems.map((item) => {
+        const Icon = item.icon;
+        const isProjectsItem = item.href === "/projects";
+        const isRouteActive = isSidebarPathMatch(pathname, item.href);
+
+        if (!isProjectsItem) {
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              className={cn(
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                isRouteActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span>{item.label}</span>
+            </Link>
+          );
+        }
+
+        const submenuId = `${idPrefix}-projects-submenu`;
+        const parentToneClass = isRouteActive
+          ? isChildRouteActive
+            ? "bg-secondary text-secondary-foreground"
+            : "bg-primary text-primary-foreground"
+          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground";
+
+        return (
+          <div key={item.href} className="space-y-1">
+            <div className={cn("flex items-center rounded-md transition-colors", parentToneClass)}>
+              <Link
+                href={item.href}
+                onClick={onNavigate}
+                className="flex min-w-0 flex-1 items-center gap-3 rounded-l-md px-3 py-2 text-sm font-medium"
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{item.label}</span>
+              </Link>
+              <button
+                type="button"
+                onClick={onToggleProjectsMenu}
+                aria-expanded={projectsMenuOpen}
+                aria-controls={submenuId}
+                aria-label={
+                  projectsMenuOpen
+                    ? "Thu gọn menu nhanh Project đang hoạt động"
+                    : "Mở rộng menu nhanh Project đang hoạt động"
+                }
+                data-testid={`${idPrefix}-projects-dropdown-toggle`}
+                className={cn(
+                  "mr-1 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  isRouteActive && !isChildRouteActive
+                    ? "text-primary-foreground/90 hover:bg-primary-foreground/15"
+                    : "hover:bg-background/60"
+                )}
+              >
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 transition-transform duration-150",
+                    projectsMenuOpen && "rotate-180"
+                  )}
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
+
+            {projectsMenuOpen && (
+              <div
+                id={submenuId}
+                data-testid={`${idPrefix}-projects-submenu`}
+                className="ml-4 space-y-0.5 border-l border-border pl-2.5 pt-0.5"
+              >
+                {activeProject ? (
+                  <>
+                    <Link
+                      href={activeProjectOverviewHref!}
+                      onClick={onNavigate}
+                      title={`Project đang hoạt động: ${activeProject.name}`}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                        isOverviewActive
+                          ? "bg-primary text-primary-foreground"
+                          : "text-foreground/85 hover:bg-accent hover:text-accent-foreground"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "h-2 w-2 shrink-0 rounded-full",
+                          isOverviewActive ? "bg-primary-foreground" : "bg-emerald-500"
+                        )}
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">{activeProject.name}</span>
+                    </Link>
+
+                    {activeProjectSubItems.map((subItem) => {
+                      const SubIcon = subItem.icon;
+                      const isSubActive = isSidebarPathMatch(pathname, subItem.href);
+                      return (
+                        <Link
+                          key={subItem.key}
+                          href={subItem.href}
+                          onClick={onNavigate}
+                          className={cn(
+                            "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors",
+                            isSubActive
+                              ? "bg-primary text-primary-foreground"
+                              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                          )}
+                        >
+                          <SubIcon className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{subItem.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </>
+                ) : (
+                  <p className="px-2.5 py-1.5 text-xs text-muted-foreground">
+                    Chưa có Project đang hoạt động.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
 export function AppShell({
   user,
   initialUnreadCount = 0,
+  activeProject = null,
   children,
 }: {
   user: AuthContext;
   initialUnreadCount?: number;
-  children: React.ReactNode;
+  activeProject?: SidebarActiveProject | null;
+  children?: React.ReactNode;
 }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+
+  const isProjectsRoute = isSidebarPathMatch(pathname, "/projects");
+  const isInActiveProjectSubRoute = Boolean(
+    activeProject && isSidebarPathMatch(pathname, `/projects/${activeProject.id}`)
+  );
+
+  const [projectsMenuOpen, setProjectsMenuOpen] = React.useState(isProjectsRoute);
+  const prevPathnameRef = React.useRef(pathname);
+
+  React.useEffect(() => {
+    const prevPathname = prevPathnameRef.current;
+    prevPathnameRef.current = pathname;
+
+    if (prevPathname === pathname) return;
+
+    const wasProjectsRoute = isSidebarPathMatch(prevPathname, "/projects");
+    if ((!wasProjectsRoute && isProjectsRoute) || isInActiveProjectSubRoute) {
+      setProjectsMenuOpen(true);
+    }
+  }, [pathname, isProjectsRoute, isInActiveProjectSubRoute]);
 
   const visibleNavItems = NAV_ITEMS.filter((item) => {
     if (item.requiredPermission && !user.permissions.includes(item.requiredPermission as never)) {
@@ -128,32 +391,7 @@ export function AppShell({
     return true;
   });
 
-  const navContent = (
-    <nav className="flex-1 space-y-1 px-3 py-4" aria-label="Điều hướng chính">
-      {visibleNavItems.map((item) => {
-        const Icon = item.icon;
-        const isActive =
-          pathname === item.href ||
-          (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={() => setMobileMenuOpen(false)}
-            className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              isActive
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-            )}
-          >
-            <Icon className="h-4 w-4 shrink-0" />
-            <span>{item.label}</span>
-          </Link>
-        );
-      })}
-    </nav>
-  );
+  const activeProjectSubItems = buildActiveProjectSubItems(activeProject, user.permissions);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -164,7 +402,16 @@ export function AppShell({
             Akatsuki Yui
           </Link>
         </div>
-        {navContent}
+        <SidebarNav
+          idPrefix="desktop"
+          pathname={pathname}
+          visibleNavItems={visibleNavItems}
+          activeProject={activeProject}
+          activeProjectSubItems={activeProjectSubItems}
+          projectsMenuOpen={projectsMenuOpen}
+          onToggleProjectsMenu={() => setProjectsMenuOpen((prev) => !prev)}
+          onNavigate={() => setMobileMenuOpen(false)}
+        />
         <div className="border-t border-border p-4 text-xs text-muted-foreground">
           Akatsuki Yui · MVP v1.0
         </div>
@@ -190,7 +437,16 @@ export function AppShell({
                 <X className="h-5 w-5" />
               </Button>
             </div>
-            {navContent}
+            <SidebarNav
+              idPrefix="mobile"
+              pathname={pathname}
+              visibleNavItems={visibleNavItems}
+              activeProject={activeProject}
+              activeProjectSubItems={activeProjectSubItems}
+              projectsMenuOpen={projectsMenuOpen}
+              onToggleProjectsMenu={() => setProjectsMenuOpen((prev) => !prev)}
+              onNavigate={() => setMobileMenuOpen(false)}
+            />
           </aside>
         </div>
       )}

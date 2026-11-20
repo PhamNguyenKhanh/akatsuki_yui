@@ -49,6 +49,28 @@ export interface ProjectCandidateUserDTO {
   fullName: string;
 }
 
+export interface ActiveProjectSummaryDTO {
+  id: string;
+  name: string;
+}
+
+function buildProjectScopeWhere(scope: {
+  adminViewAll: boolean;
+  userId: string;
+}): Prisma.ProjectWhereInput {
+  if (scope.adminViewAll) {
+    return {};
+  }
+
+  return {
+    OR: [
+      { leaderId: scope.userId },
+      { instructorId: scope.userId },
+      { members: { some: { userId: scope.userId, leftAt: null } } },
+    ],
+  };
+}
+
 const userSummarySelect = {
   id: true,
   fullName: true,
@@ -137,15 +159,7 @@ export const projectRepository = {
     query: ProjectListQueryInput,
     scope: { adminViewAll: boolean; userId: string }
   ) {
-    const scopeWhere: Prisma.ProjectWhereInput = scope.adminViewAll
-      ? {}
-      : {
-          OR: [
-            { leaderId: scope.userId },
-            { instructorId: scope.userId },
-            { members: { some: { userId: scope.userId, leftAt: null } } },
-          ],
-        };
+    const scopeWhere = buildProjectScopeWhere(scope);
 
     const filterWhere: Prisma.ProjectWhereInput = {
       ...(query.status ? { status: query.status } : {}),
@@ -253,16 +267,25 @@ export const projectRepository = {
     });
   },
 
+  async findAccessibleActiveProject(scope: {
+    adminViewAll: boolean;
+    userId: string;
+  }): Promise<ActiveProjectSummaryDTO | null> {
+    const scopeWhere = buildProjectScopeWhere(scope);
+
+    return prisma.project.findFirst({
+      where: {
+        AND: [scopeWhere, { status: ProjectStatus.ACTIVE }],
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+  },
+
   async getDashboardProjectStats(scope: { adminViewAll: boolean; userId: string }) {
-    const scopeWhere: Prisma.ProjectWhereInput = scope.adminViewAll
-      ? {}
-      : {
-          OR: [
-            { leaderId: scope.userId },
-            { instructorId: scope.userId },
-            { members: { some: { userId: scope.userId, leftAt: null } } },
-          ],
-        };
+    const scopeWhere = buildProjectScopeWhere(scope);
 
     const [total, createdCount, activeProject, archivedCount] = await Promise.all([
       prisma.project.count({ where: scopeWhere }),

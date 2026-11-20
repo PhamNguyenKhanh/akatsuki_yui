@@ -65,6 +65,7 @@ const {
       findManyPaginated: vi.fn(),
       findById: vi.fn(),
       findOtherActiveProject: vi.fn(),
+      findAccessibleActiveProject: vi.fn(),
     },
     projectMemberRepoMock: {
       listByProject: vi.fn(),
@@ -129,6 +130,7 @@ import { createProjectSchema } from "@/modules/projects/project.schema";
 import {
   activateProjectService,
   createProjectService,
+  getAccessibleActiveProjectSummaryService,
   restoreProjectService,
   updateProjectService,
 } from "@/modules/projects/project.service";
@@ -481,6 +483,40 @@ describe("Sprint 2 Business Rules & Service Unit Tests", () => {
       ).rejects.toMatchObject({
         statusCode: 409,
         code: "TASK_ASSIGNEE_REASSIGN_REQUIRED",
+      });
+    });
+  });
+
+  describe("getAccessibleActiveProjectSummaryService", () => {
+    it("returns null when actor lacks PROJECT_READ permission", async () => {
+      const noProjectReadActor: AuthContext = {
+        ...memberActor,
+        permissions: [PERMISSIONS.NOTIFICATION_READ],
+      };
+
+      const result = await getAccessibleActiveProjectSummaryService(noProjectReadActor);
+      expect(result).toBeNull();
+      expect(projectRepoMock.findAccessibleActiveProject).not.toHaveBeenCalled();
+    });
+
+    it("scopes active project lookup to adminViewAll=true for ADMIN and scoped for non-ADMIN", async () => {
+      projectRepoMock.findAccessibleActiveProject.mockResolvedValueOnce({
+        id: PROJECT_ID,
+        name: "Active Project",
+      });
+      const adminResult = await getAccessibleActiveProjectSummaryService(adminActor);
+      expect(adminResult).toEqual({ id: PROJECT_ID, name: "Active Project" });
+      expect(projectRepoMock.findAccessibleActiveProject).toHaveBeenLastCalledWith({
+        adminViewAll: true,
+        userId: ADMIN_ID,
+      });
+
+      projectRepoMock.findAccessibleActiveProject.mockResolvedValueOnce(null);
+      const memberResult = await getAccessibleActiveProjectSummaryService(memberActor);
+      expect(memberResult).toBeNull();
+      expect(projectRepoMock.findAccessibleActiveProject).toHaveBeenLastCalledWith({
+        adminViewAll: false,
+        userId: MEMBER_ID,
       });
     });
   });
