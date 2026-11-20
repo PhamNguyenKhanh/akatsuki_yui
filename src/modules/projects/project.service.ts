@@ -585,7 +585,7 @@ export async function restoreProjectService(
 ): Promise<ProjectDTO> {
   assertPermission(actor, PERMISSIONS.PROJECT_RESTORE);
   if (!isWorkspaceAdmin(actor)) {
-    throw forbiddenError("Chỉ Admin mới có quyền khôi phục Project đã Archive (DEC-008).");
+    throw forbiddenError("Chỉ Admin mới có quyền khôi phục Project đã Archive.");
   }
 
   const validProjectId = parseProjectId(projectId);

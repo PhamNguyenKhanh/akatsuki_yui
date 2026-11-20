@@ -504,8 +504,8 @@ export function computeProjectAnalytics(
       estimateCoveragePercent: formatPercent(estimatedTaskCount, totalTasks),
       bySprint,
       limitations: [
-        "Estimate Hours là khối lượng kế hoạch dự kiến, không phải thời gian thực tế đã ghi nhận (DEC-048).",
-        "Hệ thống không xếp hạng hay chia khối lượng công việc theo từng cá nhân trong báo cáo tổng hợp này (DEC-052).",
+        "Estimate Hours là khối lượng kế hoạch dự kiến, không phải thời gian thực tế đã ghi nhận.",
+        "Hệ thống không xếp hạng hay chia khối lượng công việc theo từng cá nhân trong báo cáo tổng hợp này.",
       ],
     },
   };

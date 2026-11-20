@@ -185,7 +185,7 @@ export function TaskDetailPanel({
         <Alert>
           <AlertTitle>Chế độ chỉ xem dành cho Giảng viên (Instructor)</AlertTitle>
           <AlertDescription>
-            Theo quy định phân quyền Sprint 3 (DEC-025), Instructor có thể theo dõi chi tiết và nhật
+            Instructor có thể theo dõi chi tiết và nhật
             ký thay đổi của Task nhưng không thực hiện thao tác chỉnh sửa hay review.
           </AlertDescription>
         </Alert>

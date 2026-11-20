@@ -413,7 +413,7 @@ export function ProjectReportsClient({
       {analytics.window.wasClampedTo365Days && (
         <Alert>
           <Info className="h-4 w-4" />
-          <AlertTitle>Cửa sổ phân tích đã được giới hạn tối đa 365 ngày (DEC-057)</AlertTitle>
+          <AlertTitle>Cửa sổ phân tích đã được giới hạn tối đa 365 ngày</AlertTitle>
           <AlertDescription>
             Chế độ &ldquo;Toàn bộ&rdquo; tự động giới hạn trong 365 ngày gần nhất để đảm bảo hiệu
             năng truy vấn.
@@ -523,7 +523,7 @@ export function ProjectReportsClient({
                   Sprint đang thực hiện ({analytics.summary.activeSprints.length})
                 </CardTitle>
                 <CardDescription>
-                  Hỗ trợ nhiều Sprint ACTIVE chạy song song trong cùng Project (DEC-006).
+                  Hỗ trợ nhiều Sprint ACTIVE chạy song song trong cùng Project.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 md:grid-cols-2">
@@ -674,11 +674,11 @@ export function ProjectReportsClient({
           <Card>
             <CardHeader>
               <CardTitle className="text-base">
-                So sánh Tỷ lệ hoàn thành &amp; Cam kết 6 chỉ số Sprint (DEC-058)
+                So sánh Tỷ lệ hoàn thành &amp; Cam kết 6 chỉ số Sprint
               </CardTitle>
               <CardDescription>
                 Tái dựng từ TaskHistory &amp; ActivityLog (không dùng snapshot table); estimate của
-                Sprint đã đóng được đóng băng chống chỉnh sửa sau đó (P0-01).
+                Sprint đã đóng được đóng băng chống chỉnh sửa sau đó.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -776,7 +776,7 @@ export function ProjectReportsClient({
                             </div>
                             {s.hasPostSprintEstimateEdits && (
                               <div className="mt-0.5 text-[10px] text-amber-700">
-                                Đã khóa hậu Sprint (P0-01)
+                                Đã khóa hậu Sprint
                               </div>
                             )}
                           </TableCell>
@@ -826,7 +826,7 @@ export function ProjectReportsClient({
           <Alert>
             <ShieldAlert className="h-4 w-4" />
             <AlertTitle>
-              Nguyên tắc minh bạch &amp; phi cộng dồn (DEC-047 / DEC-048 / DEC-049)
+              Nguyên tắc minh bạch &amp; phi cộng dồn
             </AlertTitle>
             <AlertDescription className="space-y-1 text-xs">
               {memberContribution.disclaimers.map((d) => (
@@ -838,7 +838,7 @@ export function ProjectReportsClient({
           {memberContribution.viewScope === "SELF_ONLY" && (
             <Alert>
               <UserCheck className="h-4 w-4" />
-              <AlertTitle>Phạm vi dữ liệu cá nhân (Quyền MEMBER · DEC-052)</AlertTitle>
+              <AlertTitle>Phạm vi dữ liệu cá nhân</AlertTitle>
               <AlertDescription>
                 Để đảm bảo bảo mật đồng đội, bạn chỉ xem được dòng đóng góp của riêng mình cùng tổng
                 hợp chung của toàn Project.
@@ -914,7 +914,7 @@ export function ProjectReportsClient({
                       onChange={(e) => void refreshMembersOnly(e.target.checked)}
                       className="h-4 w-4 rounded border-slate-300"
                     />
-                    Hiển thị thành viên đã rời Project (DEC-050)
+                    Hiển thị thành viên đã rời Project
                   </label>
                 )}
             </CardHeader>
@@ -924,11 +924,11 @@ export function ProjectReportsClient({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Thành viên</TableHead>
-                    <TableHead className="text-right">Đang giao (Sole / Co)</TableHead>
-                    <TableHead className="text-right">Đã xong (Sole / Co)</TableHead>
+                    <TableHead className="text-right">Đang giao</TableHead>
+                    <TableHead className="text-right">Đã xong</TableHead>
                     <TableHead className="text-right">In Prog / Rev / Overdue</TableHead>
                     <TableHead className="text-right">Estimate kế hoạch</TableHead>
-                    <TableHead className="text-right">Lịch sử tham gia (P0-02)</TableHead>
+                    <TableHead className="text-right">Lịch sử tham gia</TableHead>
                     <TableHead className="text-right">Hành động trong kỳ</TableHead>
                   </TableRow>
                 </TableHeader>
