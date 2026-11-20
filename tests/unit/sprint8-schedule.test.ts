@@ -113,6 +113,8 @@ function makeProjectRecord(
     id: PROJECT_ID,
     name: "Schedule Project",
     status,
+    startDate: new Date("2026-11-01T00:00:00.000Z"),
+    endDate: new Date("2026-12-31T00:00:00.000Z"),
     leaderId: LEADER_ID,
     instructorId: INSTRUCTOR_ID,
     members: [{ id: "pm-1", projectRole: role }],
@@ -278,30 +280,149 @@ describe("Project Weekly Schedule Module", () => {
     });
   });
 
+  const referenceNow = new Date("2026-11-21T08:00:00.000+07:00");
+
   it("blocks INSTRUCTOR from creating schedule entries and blocks mutations on ARCHIVED projects", async () => {
     prismaMock.__tx.project.findUnique.mockResolvedValueOnce(
       makeProjectRecord(ProjectStatus.ACTIVE)
     );
     await expect(
-      createScheduleEntryService(instructorActor, PROJECT_ID, {
-        date: "2026-11-23",
-        startTime: "14:00",
-        endTime: "16:00",
-        isRecurring: false,
-      })
+      createScheduleEntryService(
+        instructorActor,
+        PROJECT_ID,
+        {
+          date: "2026-11-23",
+          startTime: "14:00",
+          endTime: "16:00",
+          isRecurring: false,
+        },
+        referenceNow
+      )
     ).rejects.toMatchObject({ statusCode: 403 });
 
     prismaMock.__tx.project.findUnique.mockResolvedValueOnce(
       makeProjectRecord(ProjectStatus.ARCHIVED)
     );
     await expect(
-      createScheduleEntryService(memberActor, PROJECT_ID, {
-        date: "2026-11-23",
-        startTime: "14:00",
-        endTime: "16:00",
-        isRecurring: false,
-      })
+      createScheduleEntryService(
+        memberActor,
+        PROJECT_ID,
+        {
+          date: "2026-11-23",
+          startTime: "14:00",
+          endTime: "16:00",
+          isRecurring: false,
+        },
+        referenceNow
+      )
     ).rejects.toMatchObject({ statusCode: 409, code: "PROJECT_ARCHIVED" });
+  });
+
+  it("rejects creating schedule before current time or past project end date, and applies repeatWeeks accurately", async () => {
+    await expect(
+      createScheduleEntryService(
+        memberActor,
+        PROJECT_ID,
+        {
+          date: "2026-11-21",
+          startTime: "07:30",
+          endTime: "09:00",
+          isRecurring: false,
+        },
+        referenceNow
+      )
+    ).rejects.toMatchObject({ statusCode: 400, code: "VALIDATION_ERROR" });
+
+    prismaMock.__tx.project.findUnique.mockResolvedValue(makeProjectRecord(ProjectStatus.ACTIVE));
+
+    await expect(
+      createScheduleEntryService(
+        memberActor,
+        PROJECT_ID,
+        {
+          date: "2027-01-05",
+          startTime: "09:00",
+          endTime: "11:00",
+          isRecurring: false,
+        },
+        referenceNow
+      )
+    ).rejects.toMatchObject({ statusCode: 400, code: "VALIDATION_ERROR" });
+
+    // 2026-11-23 + 9 weeks -> 2027-01-18 > 2026-12-31
+    await expect(
+      createScheduleEntryService(
+        memberActor,
+        PROJECT_ID,
+        {
+          date: "2026-11-23",
+          startTime: "09:00",
+          endTime: "11:00",
+          isRecurring: true,
+          repeatWeeks: 9,
+        },
+        referenceNow
+      )
+    ).rejects.toMatchObject({ statusCode: 400, code: "VALIDATION_ERROR" });
+
+    scheduleRepoMock.createEntry.mockResolvedValueOnce({
+      id: ENTRY_ID,
+      projectId: PROJECT_ID,
+      date: new Date("2026-11-23T00:00:00.000Z"),
+      isRecurring: true,
+    });
+
+    await createScheduleEntryService(
+      memberActor,
+      PROJECT_ID,
+      {
+        date: "2026-11-23",
+        startTime: "09:00",
+        endTime: "11:00",
+        isRecurring: true,
+        repeatWeeks: 3,
+        note: "Học 3 tuần",
+      },
+      referenceNow
+    );
+
+    expect(scheduleRepoMock.createEntry).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        dateYmd: "2026-11-23",
+        isRecurring: true,
+        repeatUntilYmd: "2026-12-07",
+      }),
+      prismaMock.__tx
+    );
+
+    scheduleRepoMock.createEntry.mockResolvedValueOnce({
+      id: ENTRY_ID,
+      projectId: PROJECT_ID,
+      date: new Date("2026-11-23T00:00:00.000Z"),
+      isRecurring: true,
+    });
+
+    await createScheduleEntryService(
+      memberActor,
+      PROJECT_ID,
+      {
+        date: "2026-11-23",
+        startTime: "09:00",
+        endTime: "11:00",
+        isRecurring: true,
+        repeatWeeks: null,
+      },
+      referenceNow
+    );
+
+    expect(scheduleRepoMock.createEntry).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        dateYmd: "2026-11-23",
+        isRecurring: true,
+        repeatUntilYmd: "2026-12-31",
+      }),
+      prismaMock.__tx
+    );
   });
 
   it("enforces owner-only updates and allows Leader to delete another member's entry", async () => {

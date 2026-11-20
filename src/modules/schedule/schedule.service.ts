@@ -3,7 +3,15 @@ import { ScheduleExceptionType } from "@prisma/client";
 import { badRequestError, notFoundError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
-import { addDaysToYmd, formatHcmYmd, formatPgDateYmd, getHcmIsoWeekStartYmd } from "@/lib/timezone";
+import {
+  addDaysToYmd,
+  formatHcmDateVi,
+  formatHcmYmd,
+  formatPgDateYmd,
+  getHcmIsoWeekStartYmd,
+  hcmDateTimeInstant,
+  toProjectCalendarYmd,
+} from "@/lib/timezone";
 import { listProjectMembersService } from "@/modules/project-members/member.service";
 import { parseProjectId } from "@/modules/projects/project.access";
 import {
@@ -30,6 +38,8 @@ import {
 } from "@/modules/schedule/schedule.schema";
 import {
   buildWeekDayColumns,
+  computeRepeatUntilFromWeeks,
+  computeRepeatWeeksFromRange,
   getIsoDayOfWeekFromYmd,
   hhmmToMinutes,
   minutesToHhmm,
@@ -102,6 +112,10 @@ export function expandScheduleEntriesForWeek(
     const isOwner = entry.userId === permissions.actorUserId;
     const canEdit = isOwner && permissions.canManageOwn;
     const canDelete = (isOwner && permissions.canManageOwn) || permissions.canDeleteAny;
+    const repeatWeeks =
+      entry.isRecurring && repeatUntilYmd
+        ? computeRepeatWeeksFromRange(seriesStartDate, repeatUntilYmd)
+        : null;
 
     occurrences.push({
       entryId: entry.id,
@@ -118,6 +132,8 @@ export function expandScheduleEntriesForWeek(
       endTime: minutesToHhmm(endMinute),
       note,
       isRecurring: entry.isRecurring,
+      repeatUntil: repeatUntilYmd,
+      repeatWeeks,
       isOverridden,
       canEdit,
       canDelete,
@@ -183,9 +199,12 @@ export async function getProjectWeeklyScheduleService(
 
   return {
     projectId: validProjectId,
+    projectStartDate: toProjectCalendarYmd(project.startDate),
+    projectEndDate: toProjectCalendarYmd(project.endDate),
     weekStart,
     weekEnd,
     todayYmd,
+    nowIso: new Date().toISOString(),
     days,
     members,
     occurrences,
@@ -196,13 +215,52 @@ export async function getProjectWeeklyScheduleService(
   };
 }
 
+function resolveScheduleRepeatUntilYmd(params: {
+  startDateYmd: string;
+  isRecurring: boolean;
+  repeatWeeks: number | null;
+  projectEndYmd: string;
+}): string | null {
+  if (params.startDateYmd > params.projectEndYmd) {
+    throw badRequestError(
+      `Không thể tạo lịch bận vượt quá thời hạn cuối cùng của Project (${formatHcmDateVi(params.projectEndYmd)}).`,
+      [{ field: "date", message: "Ngày không được vượt quá ngày kết thúc Project." }]
+    );
+  }
+
+  if (!params.isRecurring) {
+    return null;
+  }
+
+  if (params.repeatWeeks !== null) {
+    const computedEndYmd = computeRepeatUntilFromWeeks(params.startDateYmd, params.repeatWeeks);
+    if (computedEndYmd > params.projectEndYmd) {
+      throw badRequestError(
+        `Lịch lặp lại ${params.repeatWeeks} tuần (đến ngày ${formatHcmDateVi(computedEndYmd)}) vượt quá thời hạn cuối cùng của Project (${formatHcmDateVi(params.projectEndYmd)}).`,
+        [{ field: "repeatWeeks", message: "Số tuần lặp lại vượt quá hạn chót Project." }]
+      );
+    }
+    return computedEndYmd;
+  }
+
+  return params.projectEndYmd;
+}
+
 export async function createScheduleEntryService(
   actor: AuthContext,
   projectId: string,
-  rawInput: CreateScheduleEntryInput
+  rawInput: CreateScheduleEntryInput,
+  referenceNow: Date = new Date()
 ): Promise<{ id: string; projectId: string; date: string }> {
   const validProjectId = parseProjectId(projectId);
   const input = createScheduleEntrySchema.parse(rawInput);
+
+  const startInstant = hcmDateTimeInstant(input.date, input.startTime);
+  if (startInstant.getTime() < referenceNow.getTime()) {
+    throw badRequestError("Không thể tạo lịch bận trước thời gian hiện tại.", [
+      { field: "startTime", message: "Thời gian bắt đầu phải từ hiện tại trở đi." },
+    ]);
+  }
 
   const startMinute = hhmmToMinutes(input.startTime);
   const endMinute = hhmmToMinutes(input.endTime);
@@ -212,6 +270,14 @@ export async function createScheduleEntryService(
     const project = await assertScheduleReadAccess(actor, validProjectId, tx);
     assertCanCreateOwnSchedule(actor, project);
 
+    const projectEndYmd = toProjectCalendarYmd(project.endDate);
+    const repeatUntilYmd = resolveScheduleRepeatUntilYmd({
+      startDateYmd: input.date,
+      isRecurring: input.isRecurring,
+      repeatWeeks: input.repeatWeeks,
+      projectEndYmd,
+    });
+
     const entry = await scheduleRepository.createEntry(
       {
         projectId: validProjectId,
@@ -219,12 +285,19 @@ export async function createScheduleEntryService(
         dateYmd: input.date,
         dayOfWeek,
         isRecurring: input.isRecurring,
+        repeatUntilYmd,
         startMinute,
         endMinute,
         note: input.note,
       },
       tx
     );
+
+    const repeatLabel = input.isRecurring
+      ? input.repeatWeeks !== null
+        ? ` · Lặp lại ${input.repeatWeeks} tuần`
+        : " · Lặp lại đến hết Project"
+      : "";
 
     await tx.activityLog.create({
       data: {
@@ -233,7 +306,7 @@ export async function createScheduleEntryService(
         action: "SCHEDULE_CREATED",
         entityType: "ProjectScheduleEntry",
         entityId: entry.id,
-        description: `Ghi chú lịch bận ngày ${input.date} (${input.startTime}–${input.endTime})${input.isRecurring ? " · Lặp lại hàng tuần" : ""}.`,
+        description: `Ghi chú lịch bận ngày ${input.date} (${input.startTime}–${input.endTime})${repeatLabel}.`,
       },
     });
 
@@ -276,11 +349,17 @@ export async function updateScheduleEntryService(
 
     assertCanUpdateScheduleEntry(actor, project, existing.userId);
 
+    const projectEndYmd = toProjectCalendarYmd(project.endDate);
     const seriesStartYmd = formatPgDateYmd(existing.date);
 
     if (existing.isRecurring && input.scope === "THIS_WEEK") {
       if (input.occurrenceDate < seriesStartYmd) {
         throw badRequestError("Ngày ngoại lệ không thể sớm hơn ngày bắt đầu chuỗi lặp lại.");
+      }
+      if (input.occurrenceDate > projectEndYmd) {
+        throw badRequestError(
+          `Không thể cập nhật lịch bận vượt quá thời hạn cuối cùng của Project (${formatHcmDateVi(projectEndYmd)}).`
+        );
       }
 
       await scheduleRepository.upsertException(
@@ -319,6 +398,13 @@ export async function updateScheduleEntryService(
       await scheduleRepository.deleteExceptionsFromDate(existing.id, input.occurrenceDate, tx);
 
       const newStartDateYmd = input.date ?? input.occurrenceDate;
+      const nextRepeatUntilYmd = resolveScheduleRepeatUntilYmd({
+        startDateYmd: newStartDateYmd,
+        isRecurring: input.isRecurring,
+        repeatWeeks: input.repeatWeeks,
+        projectEndYmd,
+      });
+
       const newEntry = await scheduleRepository.createEntry(
         {
           projectId: validProjectId,
@@ -326,7 +412,7 @@ export async function updateScheduleEntryService(
           dateYmd: newStartDateYmd,
           dayOfWeek: getIsoDayOfWeekFromYmd(newStartDateYmd),
           isRecurring: input.isRecurring,
-          repeatUntilYmd: existing.repeatUntil ? formatPgDateYmd(existing.repeatUntil) : null,
+          repeatUntilYmd: nextRepeatUntilYmd,
           startMinute,
           endMinute,
           note: input.note,
@@ -350,6 +436,13 @@ export async function updateScheduleEntryService(
 
     const nextDateYmd = input.date ?? seriesStartYmd;
     const nextDayOfWeek = getIsoDayOfWeekFromYmd(nextDateYmd);
+    const nextRepeatUntilYmd = resolveScheduleRepeatUntilYmd({
+      startDateYmd: nextDateYmd,
+      isRecurring: input.isRecurring,
+      repeatWeeks: input.repeatWeeks,
+      projectEndYmd,
+    });
+
     if (!input.isRecurring || nextDayOfWeek !== existing.dayOfWeek) {
       await scheduleRepository.deleteAllExceptionsForEntry(existing.id, tx);
     }
@@ -360,7 +453,7 @@ export async function updateScheduleEntryService(
         dateYmd: nextDateYmd,
         dayOfWeek: nextDayOfWeek,
         isRecurring: input.isRecurring,
-        ...(input.isRecurring ? {} : { repeatUntilYmd: null }),
+        repeatUntilYmd: nextRepeatUntilYmd,
         startMinute,
         endMinute,
         note: input.note,
