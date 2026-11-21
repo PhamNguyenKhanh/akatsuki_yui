@@ -27,7 +27,7 @@ import type {
   SyncTaskAssigneesInput,
   UpdateTaskInput,
 } from "@/modules/tasks/task.schema";
-import { createTaskService, updateTaskService } from "@/modules/tasks/task.service";
+import { createTaskService, deleteTaskService, updateTaskService } from "@/modules/tasks/task.service";
 import {
   approveTaskReviewService,
   rejectTaskReviewService,
@@ -212,5 +212,18 @@ export async function removeTaskDependencyAction(
     return { ok: true, data: dependencies };
   } catch (error) {
     return toActionError(error, { action: "removeTaskDependencyAction" });
+  }
+}
+
+export async function deleteTaskAction(
+  taskId: string
+): Promise<ActionResult<{ taskId: string; projectId: string; code: string; title: string }>> {
+  try {
+    const actor = await requireActiveUser();
+    const deleted = await deleteTaskService(actor, taskId);
+    revalidateTaskPaths(deleted.projectId, deleted.taskId);
+    return { ok: true, data: deleted };
+  } catch (error) {
+    return toActionError(error, { action: "deleteTaskAction" });
   }
 }

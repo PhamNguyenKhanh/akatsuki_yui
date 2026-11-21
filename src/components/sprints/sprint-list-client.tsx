@@ -4,8 +4,28 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ProjectStatus, SprintStatus } from "@prisma/client";
-import { ArrowRight, Calendar, Kanban, Layers, Plus, Search } from "lucide-react";
+import {
+  ArrowRight,
+  Calendar,
+  Kanban,
+  Layers,
+  Plus,
+  RotateCcw,
+  Search,
+  Trash2,
+} from "lucide-react";
+import { toast } from "sonner";
 import { SprintStatusBadge } from "@/components/shared/status-badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
@@ -17,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { deleteSprintAction, reopenSprintAction } from "@/modules/sprints/sprint.actions";
 import type { SprintSummaryDTO } from "@/modules/sprints/sprint.repository";
 import { formatSprintDateYmd } from "@/modules/sprints/sprint.schema";
 
@@ -52,6 +73,8 @@ export function SprintListClient({
   const [statusFilter, setStatusFilter] = React.useState<string>(
     initialFilters.status ?? ALL_STATUS
   );
+  const [busySprintId, setBusySprintId] = React.useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = React.useState<SprintSummaryDTO | null>(null);
 
   const isArchived = projectStatus === ProjectStatus.ARCHIVED;
 
@@ -70,6 +93,36 @@ export function SprintListClient({
   function handleSearchSubmit(e: React.FormEvent) {
     e.preventDefault();
     pushFilters({ search: searchInput });
+  }
+
+  async function handleReopenSprint(sprint: SprintSummaryDTO) {
+    setBusySprintId(sprint.id);
+    const result = await reopenSprintAction(sprint.id);
+    setBusySprintId(null);
+    if (!result.ok) {
+      toast.error(result.error.message);
+      return;
+    }
+    toast.success(`Đã khởi chạy lại Sprint "${sprint.name}" về trạng thái PLANNED.`);
+    router.refresh();
+  }
+
+  async function handleConfirmDeleteSprint() {
+    if (!deleteTarget) return;
+    setBusySprintId(deleteTarget.id);
+    const result = await deleteSprintAction(deleteTarget.id);
+    setBusySprintId(null);
+    if (!result.ok) {
+      toast.error(result.error.message);
+      return;
+    }
+    toast.success(
+      result.data.returnedTaskCount > 0
+        ? `Đã xóa Sprint "${result.data.name}" và trả ${result.data.returnedTaskCount} Task về Backlog.`
+        : `Đã xóa Sprint "${result.data.name}".`
+    );
+    setDeleteTarget(null);
+    router.refresh();
   }
 
   return (
@@ -245,6 +298,35 @@ export function SprintListClient({
                           </Link>
                         </Button>
                       )}
+                      {canManageSprint && !isArchived && sprint.status === SprintStatus.CANCELLED && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={busySprintId === sprint.id}
+                          onClick={() => void handleReopenSprint(sprint)}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          <span>Khởi chạy lại</span>
+                        </Button>
+                      )}
+                      {canManageSprint &&
+                        !isArchived &&
+                        (sprint.status === SprintStatus.PLANNED ||
+                          sprint.status === SprintStatus.CANCELLED) && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            disabled={busySprintId === sprint.id}
+                            onClick={() => setDeleteTarget(sprint)}
+                            title="Xóa Sprint"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span>Xóa</span>
+                          </Button>
+                        )}
                     </div>
                     <Button asChild size="sm">
                       <Link href={`/projects/${projectId}/sprints/${sprint.id}`}>
@@ -259,6 +341,40 @@ export function SprintListClient({
           })}
         </div>
       )}
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Xóa vĩnh viễn Sprint &ldquo;{deleteTarget?.name}&rdquo;?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Sprint sẽ bị xóa vĩnh viễn khỏi Project.{" "}
+              {deleteTarget && deleteTarget.taskStats.totalTasks > 0
+                ? `${deleteTarget.taskStats.totalTasks} Task hiện đang gắn với Sprint này sẽ được trả về Product Backlog.`
+                : "Hiện không có Task nào đang gắn với Sprint này."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busySprintId !== null}>Đóng</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busySprintId !== null}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleConfirmDeleteSprint();
+              }}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {busySprintId !== null ? "Đang xóa..." : "Xác nhận xóa Sprint"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

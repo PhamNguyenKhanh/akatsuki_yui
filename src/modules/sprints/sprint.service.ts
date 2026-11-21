@@ -604,3 +604,223 @@ export async function cancelSprintService(
 
   return detail;
 }
+
+export async function reopenSprintService(
+  actor: AuthContext,
+  sprintId: string
+): Promise<SprintDetailDTO> {
+  assertPermission(actor, PERMISSIONS.SPRINT_MANAGE);
+  const validSprintId = parseSprintId(sprintId);
+
+  const detail = await prisma.$transaction(async (tx) => {
+    const initial = await assertSprintManageAccess(actor, validSprintId, tx);
+    await lockProjectRowForSprintMutation(initial.project.id, tx);
+    await acquireSprintPlanningLock(initial.project.id, tx);
+
+    const liveProject = await tx.project.findUnique({
+      where: { id: initial.project.id },
+      select: { id: true, status: true },
+    });
+    if (!liveProject) {
+      throw new AppError({
+        statusCode: 404,
+        code: "NOT_FOUND",
+        message: "Không tìm thấy Project yêu cầu.",
+      });
+    }
+    assertProjectNotArchivedForSprintMutation(liveProject.status);
+
+    const current = await loadSprintRecordOrThrow(validSprintId, tx);
+    if (current.status !== SprintStatus.CANCELLED) {
+      throw conflictError(
+        "INVALID_STATUS_TRANSITION",
+        "Chỉ có thể khởi chạy lại Sprint đang ở trạng thái CANCELLED."
+      );
+    }
+
+    const updated = await tx.sprint.updateMany({
+      where: {
+        id: current.id,
+        status: SprintStatus.CANCELLED,
+      },
+      data: {
+        status: SprintStatus.PLANNED,
+        cancelledAt: null,
+      },
+    });
+
+    if (updated.count !== 1) {
+      throw conflictError(
+        "INVALID_STATUS_TRANSITION",
+        "Sprint không còn ở trạng thái CANCELLED để khởi chạy lại."
+      );
+    }
+
+    await tx.activityLog.create({
+      data: {
+        userId: actor.userId,
+        projectId: current.projectId,
+        action: "SPRINT_REOPENED",
+        entityType: "Sprint",
+        entityId: current.id,
+        description: `Khởi chạy lại Sprint đã hủy "${current.name}" về trạng thái PLANNED`,
+        metadata: {
+          projectId: current.projectId,
+        },
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.userId,
+        action: "SPRINT_REOPENED",
+        entityType: "Sprint",
+        entityId: current.id,
+        oldValue: { status: SprintStatus.CANCELLED },
+        newValue: { status: SprintStatus.PLANNED, cancelledAt: null },
+      },
+    });
+
+    const refreshed = await sprintRepository.findDetailById(current.id, tx);
+    if (!refreshed) {
+      throw new AppError({
+        statusCode: 404,
+        code: "SPRINT_NOT_FOUND",
+        message: "Không tìm thấy Sprint sau khi khởi chạy lại.",
+      });
+    }
+    return refreshed;
+  });
+
+  logger.info("Sprint reopened", {
+    actorId: actor.userId,
+    projectId: detail.projectId,
+    sprintId: detail.id,
+  });
+
+  return detail;
+}
+
+export async function deleteSprintService(
+  actor: AuthContext,
+  sprintId: string
+): Promise<{ sprintId: string; projectId: string; name: string; returnedTaskCount: number }> {
+  assertPermission(actor, PERMISSIONS.SPRINT_MANAGE);
+  const validSprintId = parseSprintId(sprintId);
+
+  const result = await prisma.$transaction(async (tx) => {
+    const initial = await assertSprintManageAccess(actor, validSprintId, tx);
+    await lockProjectRowForSprintMutation(initial.project.id, tx);
+    await acquireSprintPlanningLock(initial.project.id, tx);
+
+    const liveProject = await tx.project.findUnique({
+      where: { id: initial.project.id },
+      select: { id: true, status: true },
+    });
+    if (!liveProject) {
+      throw new AppError({
+        statusCode: 404,
+        code: "NOT_FOUND",
+        message: "Không tìm thấy Project yêu cầu.",
+      });
+    }
+    assertProjectNotArchivedForSprintMutation(liveProject.status);
+
+    const current = await loadSprintRecordOrThrow(validSprintId, tx);
+    if (current.status === SprintStatus.ACTIVE) {
+      throw conflictError(
+        "INVALID_STATUS_TRANSITION",
+        "Không thể xóa Sprint đang ACTIVE. Vui lòng sử dụng chức năng Complete Sprint."
+      );
+    }
+    if (current.status === SprintStatus.COMPLETED) {
+      throw conflictError(
+        "INVALID_STATUS_TRANSITION",
+        "Không thể xóa Sprint đã hoàn thành (COMPLETED)."
+      );
+    }
+
+    await lockSprintTasksForUpdate(current.id, tx);
+
+    const attachedTasks = await tx.task.findMany({
+      where: { sprintId: current.id },
+      select: { id: true },
+    });
+
+    if (attachedTasks.length > 0) {
+      const taskIds = attachedTasks.map((t) => t.id);
+      await tx.task.updateMany({
+        where: {
+          id: { in: taskIds },
+          sprintId: current.id,
+        },
+        data: { sprintId: null },
+      });
+
+      await taskHistoryRepository.appendManyTaskHistories(
+        taskIds.map((taskId) => ({
+          taskId,
+          actorId: actor.userId,
+          action: TaskHistoryAction.SPRINT_REMOVED,
+          oldValue: { sprintId: current.id, sprintName: current.name },
+          newValue: { sprintId: null },
+          metadata: {
+            source: "SPRINT_DELETED",
+            sprintId: current.id,
+            sprintName: current.name,
+          },
+        })),
+        tx
+      );
+    }
+
+    await tx.sprint.delete({
+      where: { id: current.id },
+    });
+
+    await tx.activityLog.create({
+      data: {
+        userId: actor.userId,
+        projectId: current.projectId,
+        action: "SPRINT_DELETED",
+        entityType: "Sprint",
+        entityId: current.id,
+        description: `Xóa Sprint "${current.name}" (trả ${attachedTasks.length} Task về Backlog)`,
+        metadata: {
+          projectId: current.projectId,
+          previousStatus: current.status,
+          returnedToBacklogCount: attachedTasks.length,
+        },
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.userId,
+        action: "SPRINT_DELETED",
+        entityType: "Sprint",
+        entityId: current.id,
+        oldValue: {
+          projectId: current.projectId,
+          name: current.name,
+          status: current.status,
+        },
+      },
+    });
+
+    return {
+      sprintId: current.id,
+      projectId: current.projectId,
+      name: current.name,
+      returnedTaskCount: attachedTasks.length,
+    };
+  });
+
+  logger.info("Sprint deleted", {
+    actorId: actor.userId,
+    projectId: result.projectId,
+    sprintId: result.sprintId,
+  });
+
+  return result;
+}
