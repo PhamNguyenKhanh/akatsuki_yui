@@ -551,9 +551,9 @@ export function computeMemberContributionReport(
     },
     members: rows,
     disclaimers: [
-      "Báo cáo ghi nhận tham gia phi cộng dồn (non-additive): một Task giao cho nhiều thành viên (Co-Assigned) được thống kê cho từng người tham gia; tổng các dòng thành viên có thể khác Tổng số Task của Project (DEC-047).",
-      "Số liệu phản ánh vai trò tham gia và hành động ghi nhận được trong hệ thống, không đồng nhất với năng suất cá nhân hay xếp hạng thành viên (DEC-049).",
-      "Estimate Hours chỉ là khối lượng kế hoạch dự kiến, không phản ánh giờ làm thực tế đã tiêu tốn (DEC-048).",
+      "Báo cáo ghi nhận tham gia phi cộng dồn (non-additive): một Task giao cho nhiều thành viên (Co-Assigned) được thống kê cho từng người tham gia; tổng các dòng thành viên có thể khác Tổng số Task của Project.",
+      "Số liệu phản ánh vai trò tham gia và hành động ghi nhận được trong hệ thống, không đồng nhất với năng suất cá nhân hay xếp hạng thành viên.",
+      "Estimate Hours chỉ là khối lượng kế hoạch dự kiến, không phản ánh giờ làm thực tế đã tiêu tốn.",
     ],
   };
 }
