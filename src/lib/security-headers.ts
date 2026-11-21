@@ -43,7 +43,7 @@ export function buildContentSecurityPolicy(options: {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https:",
     "font-src 'self' data:",
-    "connect-src 'self'",
+    "connect-src 'self' https://*.pusher.com wss://*.pusher.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
