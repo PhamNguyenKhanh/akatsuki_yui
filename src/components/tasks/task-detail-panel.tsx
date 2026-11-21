@@ -11,6 +11,7 @@ import {
   Pencil,
   Play,
   Send,
+  Trash2,
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -26,12 +27,26 @@ import { TaskSubtasksCard } from "@/components/tasks/task-subtasks-card";
 import type { TaskAssignableMemberOption } from "@/components/tasks/task-list-client";
 import { TaskReviewModal, type TaskReviewModalMode } from "@/components/tasks/task-review-modal";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { updateTaskAction, updateTaskStatusAction } from "@/modules/tasks/task.actions";
+import {
+  deleteTaskAction,
+  updateTaskAction,
+  updateTaskStatusAction,
+} from "@/modules/tasks/task.actions";
 import type {
   TaskCommentDTO,
   TaskMentionableMemberDTO,
@@ -101,6 +116,8 @@ export function TaskDetailPanel({
   );
   const [progressBusy, setProgressBusy] = React.useState(false);
   const [progressError, setProgressError] = React.useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+  const [deleteBusy, setDeleteBusy] = React.useState(false);
 
   const isArchived = task.project.status === ProjectStatus.ARCHIVED;
   const isCompletedTask = task.status === TaskStatus.DONE;
@@ -173,6 +190,21 @@ export function TaskDetailPanel({
 
     toast.success("Đã lưu ghi chú tiến độ và liên kết tham chiếu.");
     router.refresh();
+  }
+
+  async function handleConfirmDeleteTask() {
+    setDeleteBusy(true);
+    const result = await deleteTaskAction(task.id);
+    setDeleteBusy(false);
+
+    if (!result.ok) {
+      toast.error(result.error.message);
+      return;
+    }
+
+    setDeleteDialogOpen(false);
+    toast.success(`Đã xóa Task ${result.data.code}.`);
+    router.push(`/projects/${result.data.projectId}/tasks`);
   }
 
   return (
@@ -322,12 +354,23 @@ export function TaskDetailPanel({
               </>
             )}
             {canEditLeaderMetadata && (
-              <Button asChild size="sm" variant="outline">
-                <Link href={`/projects/${task.projectId}/tasks/${task.id}/edit`}>
-                  <Pencil className="h-4 w-4" />
-                  <span>Chỉnh sửa</span>
-                </Link>
-              </Button>
+              <>
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/projects/${task.projectId}/tasks/${task.id}/edit`}>
+                    <Pencil className="h-4 w-4" />
+                    <span>Chỉnh sửa</span>
+                  </Link>
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => setDeleteDialogOpen(true)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>Xóa Task</span>
+                </Button>
+              </>
             )}
           </div>
         </CardHeader>
@@ -512,6 +555,35 @@ export function TaskDetailPanel({
         taskTitle={task.title}
         taskCode={task.code}
       />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Xóa vĩnh viễn Task {task.code}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn sắp xóa Task <strong>{task.title}</strong>. Toàn bộ bình luận, checklist đầu việc,
+              phân công, lịch sử và liên kết phụ thuộc gắn với Task này sẽ bị xóa vĩnh viễn.
+              {(task.dependents.length > 0 || task.dependencies.length > 0) &&
+                ` Lưu ý: Task này đang có ${task.dependencies.length} phụ thuộc đầu vào và ${task.dependents.length} Task phụ thuộc vào nó.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteBusy}>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteBusy}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleConfirmDeleteTask();
+              }}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {deleteBusy ? "Đang xóa..." : "Xác nhận xóa Task"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

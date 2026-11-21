@@ -13,6 +13,8 @@ import {
   Pencil,
   Play,
   Plus,
+  RotateCcw,
+  Trash2,
   Undo2,
   XCircle,
 } from "lucide-react";
@@ -62,7 +64,9 @@ import type { SprintAnalyticsDTO } from "@/modules/sprints/sprint-analytics.serv
 import {
   activateSprintAction,
   cancelSprintAction,
+  deleteSprintAction,
   moveSprintTaskAction,
+  reopenSprintAction,
 } from "@/modules/sprints/sprint.actions";
 import type { SprintDetailDTO, SprintTargetOptionDTO } from "@/modules/sprints/sprint.repository";
 import { formatSprintDateYmd } from "@/modules/sprints/sprint.schema";
@@ -116,6 +120,7 @@ export function SprintDetailClient({
   const [completeModalOpen, setCompleteModalOpen] = React.useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = React.useState(false);
   const [cancelReason, setCancelReason] = React.useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [pendingReviewMove, setPendingReviewMove] =
     React.useState<PendingTaskMoveConfirmation | null>(null);
 
@@ -155,6 +160,35 @@ export function SprintDetailClient({
     setCancelReason("");
     toast.success(`Đã hủy Sprint "${sprint.name}" và trả các Task chưa xong về Backlog.`);
     router.refresh();
+  }
+
+  async function handleReopenSprint() {
+    setBusyAction(true);
+    const result = await reopenSprintAction(sprint.id);
+    setBusyAction(false);
+    if (!result.ok) {
+      toast.error(result.error.message);
+      return;
+    }
+    toast.success(`Đã khởi chạy lại Sprint "${sprint.name}" về trạng thái PLANNED.`);
+    router.refresh();
+  }
+
+  async function handleConfirmDeleteSprint() {
+    setBusyAction(true);
+    const result = await deleteSprintAction(sprint.id);
+    setBusyAction(false);
+    if (!result.ok) {
+      toast.error(result.error.message);
+      return;
+    }
+    setDeleteDialogOpen(false);
+    toast.success(
+      result.data.returnedTaskCount > 0
+        ? `Đã xóa Sprint "${result.data.name}" và trả ${result.data.returnedTaskCount} Task về Backlog.`
+        : `Đã xóa Sprint "${result.data.name}".`
+    );
+    router.push(`/projects/${result.data.projectId}/sprints`);
   }
 
   async function executeTaskMove(taskId: string, targetSprintId: string | null, label: string) {
@@ -336,6 +370,34 @@ export function SprintDetailClient({
               <span>Hoàn thành Sprint</span>
             </Button>
           )}
+
+          {canManageSprint && !isArchived && sprint.status === SprintStatus.CANCELLED && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busyAction}
+              onClick={() => void handleReopenSprint()}
+            >
+              <RotateCcw className="h-4 w-4" />
+              <span>Khởi chạy lại Sprint</span>
+            </Button>
+          )}
+
+          {canManageSprint &&
+            !isArchived &&
+            (sprint.status === SprintStatus.PLANNED || sprint.status === SprintStatus.CANCELLED) && (
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                disabled={busyAction}
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>Xóa Sprint</span>
+              </Button>
+            )}
         </div>
       </div>
 
@@ -640,6 +702,33 @@ export function SprintDetailClient({
               }}
             >
               Vẫn chuyển Task
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xóa vĩnh viễn Sprint &ldquo;{sprint.name}&rdquo;?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sprint sẽ bị xóa vĩnh viễn khỏi Project.{" "}
+              {sprint.tasks.length > 0
+                ? `${sprint.tasks.length} Task hiện đang gắn với Sprint này sẽ được tự động trả về Product Backlog.`
+                : "Hiện không có Task nào đang gắn với Sprint này."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busyAction}>Đóng</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busyAction}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleConfirmDeleteSprint();
+              }}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {busyAction ? "Đang xóa..." : "Xác nhận xóa Sprint"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

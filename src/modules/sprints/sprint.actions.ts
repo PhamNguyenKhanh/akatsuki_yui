@@ -21,6 +21,8 @@ import {
   activateSprintService,
   cancelSprintService,
   createSprintService,
+  deleteSprintService,
+  reopenSprintService,
   updateSprintService,
 } from "@/modules/sprints/sprint.service";
 import type { TaskDetailDTO, TaskSummaryDTO } from "@/modules/tasks/task.repository";
@@ -151,5 +153,33 @@ export async function completeSprintAction(
     return { ok: true, data: updated };
   } catch (error) {
     return toActionError(error, { action: "completeSprintAction" });
+  }
+}
+
+export async function reopenSprintAction(
+  sprintId: string
+): Promise<ActionResult<SprintDetailDTO>> {
+  try {
+    const actor = await requireActiveUser();
+    const updated = await reopenSprintService(actor, sprintId);
+    revalidateSprintPaths(updated.projectId, updated.id);
+    return { ok: true, data: updated };
+  } catch (error) {
+    return toActionError(error, { action: "reopenSprintAction" });
+  }
+}
+
+export async function deleteSprintAction(
+  sprintId: string
+): Promise<
+  ActionResult<{ sprintId: string; projectId: string; name: string; returnedTaskCount: number }>
+> {
+  try {
+    const actor = await requireActiveUser();
+    const deleted = await deleteSprintService(actor, sprintId);
+    revalidateSprintPaths(deleted.projectId, deleted.sprintId);
+    return { ok: true, data: deleted };
+  } catch (error) {
+    return toActionError(error, { action: "deleteSprintAction" });
   }
 }

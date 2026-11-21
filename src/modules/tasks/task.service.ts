@@ -29,6 +29,7 @@ import {
 } from "@/modules/tasks/task.repository";
 import {
   assertProjectNotArchivedForTaskMutation,
+  assertTaskLeaderAccess,
   assertTaskNotDoneForMutation,
   assertTaskProgressOrReviewActorAccess,
   assertTaskReadAccess,
@@ -36,6 +37,7 @@ import {
 } from "@/modules/tasks/task.access";
 import {
   createTaskSchema,
+  formatTaskCode,
   LEADER_ONLY_TASK_UPDATE_FIELDS,
   taskListQuerySchema,
   updateTaskSchema,
@@ -469,5 +471,65 @@ export async function updateTaskService(
     }
 
     return detail;
+  });
+}
+
+export async function deleteTaskService(
+  actor: AuthContext,
+  taskId: string
+): Promise<{ taskId: string; projectId: string; code: string; title: string }> {
+  assertPermission(actor, PERMISSIONS.TASK_UPDATE);
+  const validTaskId = parseTaskId(taskId);
+
+  return prisma.$transaction(async (tx) => {
+    const { task, project } = await assertTaskLeaderAccess(actor, validTaskId, tx, {
+      lockForMutation: true,
+    });
+    assertProjectNotArchivedForTaskMutation(project.status);
+    assertTaskNotDoneForMutation(task.status);
+
+    const code = formatTaskCode(task.id);
+
+    await tx.task.delete({
+      where: { id: task.id },
+    });
+
+    await tx.activityLog.create({
+      data: {
+        userId: actor.userId,
+        projectId: project.id,
+        action: "TASK_DELETED",
+        entityType: "Task",
+        entityId: task.id,
+        description: `Xóa Task [${code}] "${task.title}"`,
+        metadata: {
+          projectId: project.id,
+          taskCode: code,
+          status: task.status,
+        },
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.userId,
+        action: "TASK_DELETED",
+        entityType: "Task",
+        entityId: task.id,
+        oldValue: {
+          projectId: project.id,
+          title: task.title,
+          status: task.status,
+          priority: task.priority,
+        },
+      },
+    });
+
+    return {
+      taskId: task.id,
+      projectId: project.id,
+      code,
+      title: task.title,
+    };
   });
 }
