@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { sanitizeExternalHttpUrl } from "@/lib/safe-url";
+import { formatTaskZaloSummary } from "@/lib/zalo-summary";
+import { CopyZaloButton } from "@/components/shared/copy-zalo-button";
 import { TaskPriorityBadge, TaskStatusBadge } from "@/components/shared/status-badge";
 import { TaskAssigneesCard } from "@/components/tasks/task-assignees-card";
 import { TaskDependenciesCard } from "@/components/tasks/task-dependencies-card";
@@ -244,6 +246,29 @@ export function TaskDetailPanel({
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <CopyZaloButton
+              getText={() =>
+                formatTaskZaloSummary({
+                  code: task.code,
+                  title: task.title,
+                  projectName: task.project.name,
+                  sprintName: task.sprint?.name ?? null,
+                  status: task.status,
+                  priority: task.priority,
+                  deadlineText: formatDateVi(task.deadline),
+                  isOverdue: task.isOverdue,
+                  blockedByCount: task.blockedByCount,
+                  assigneeNames: task.assignees.map((a) => a.user.fullName),
+                  progressNotes: task.progressNotes,
+                  referenceLinks: task.referenceLinks,
+                  taskUrl:
+                    typeof window !== "undefined"
+                      ? `${window.location.origin}/projects/${task.projectId}/tasks/${task.id}`
+                      : undefined,
+                })
+              }
+              successMessage={`Đã copy tóm tắt ${task.code} chuẩn Zalo.`}
+            />
             {canStartWork && (
               <Button type="button" size="sm" disabled={statusBusy} onClick={handleStartWork}>
                 <Play className="h-4 w-4" />

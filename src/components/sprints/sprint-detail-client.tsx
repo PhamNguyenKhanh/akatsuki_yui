@@ -17,11 +17,13 @@ import {
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { CopyZaloButton } from "@/components/shared/copy-zalo-button";
 import {
   SprintStatusBadge,
   TaskPriorityBadge,
   TaskStatusBadge,
 } from "@/components/shared/status-badge";
+import { formatSprintZaloSummary } from "@/lib/zalo-summary";
 import { AssignBacklogDialog } from "@/components/sprints/assign-backlog-dialog";
 import { SprintBurndownChart } from "@/components/sprints/sprint-burndown-chart";
 import { SprintCompleteModal } from "@/components/sprints/sprint-complete-modal";
@@ -222,6 +224,50 @@ export function SprintDetailClient({
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <CopyZaloButton
+            getText={() =>
+              formatSprintZaloSummary({
+                sprintName: sprint.name,
+                projectName: sprint.project.name,
+                status: sprint.status,
+                startDateText: formatDateVi(sprint.startDate),
+                endDateText: formatDateVi(sprint.endDate),
+                totalTasks: analytics.progress.totalTasks,
+                doneCount: analytics.progress.doneCount,
+                inProgressCount: analytics.progress.inProgressCount,
+                reviewCount: analytics.progress.reviewCount,
+                todoCount: analytics.progress.todoCount,
+                overdueCount: analytics.progress.overdueCount,
+                progressPercent: analytics.progress.progressPercent,
+                hasEstimateData: analytics.burndown.hasEstimateData,
+                completedEstimateHours: analytics.burndown.completedEstimateHours,
+                remainingEstimateHours: analytics.burndown.remainingEstimateHours,
+                currentScopeHours: analytics.burndown.currentScopeHours,
+                reviewTasks: sprint.tasks
+                  .filter((t) => t.status === TaskStatus.REVIEW)
+                  .map((t) => ({
+                    code: t.code,
+                    title: t.title,
+                    assigneeNames: t.assignees.map((a) => a.user.fullName),
+                    deadlineText: formatDateVi(t.deadline),
+                  })),
+                overdueTasks: sprint.tasks
+                  .filter((t) => t.isOverdue && t.status !== TaskStatus.DONE)
+                  .map((t) => ({
+                    code: t.code,
+                    title: t.title,
+                    assigneeNames: t.assignees.map((a) => a.user.fullName),
+                    deadlineText: formatDateVi(t.deadline),
+                  })),
+                sprintUrl:
+                  typeof window !== "undefined"
+                    ? `${window.location.origin}/projects/${sprint.projectId}/sprints/${sprint.id}`
+                    : undefined,
+              })
+            }
+            successMessage={`Đã copy báo cáo Sprint "${sprint.name}" chuẩn Zalo.`}
+          />
+
           <Button asChild variant="outline" size="sm">
             <Link href={`/projects/${sprint.projectId}/kanban?scope=SPRINT&sprintId=${sprint.id}`}>
               <Kanban className="h-4 w-4" />
