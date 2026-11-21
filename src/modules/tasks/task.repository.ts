@@ -89,6 +89,18 @@ export interface TaskReviewDTO {
   };
 }
 
+export interface TaskBlockerRefDTO {
+  id: string;
+  code: string;
+  title: string;
+  status: TaskStatus;
+}
+
+export interface MemberWorkloadDTO {
+  activeTaskCount: number;
+  activeEstimateHours: number;
+}
+
 export interface TaskSummaryDTO {
   id: string;
   code: string;
@@ -115,6 +127,7 @@ export interface TaskSummaryDTO {
   assignees: TaskAssigneeDTO[];
   dependencyCount: number;
   blockedByCount: number;
+  blockedByTasks?: TaskBlockerRefDTO[];
   dependentCount: number;
   createdAt: Date;
   updatedAt: Date;
@@ -161,6 +174,37 @@ export interface ProjectTaskOptionDTO {
   status: TaskStatus;
   priority: TaskPriority;
   deadline: Date;
+}
+
+export async function getProjectMemberWorkloads(
+  projectId: string
+): Promise<Map<string, MemberWorkloadDTO>> {
+  const rows = await prisma.taskAssignee.findMany({
+    where: {
+      removedAt: null,
+      task: {
+        projectId,
+        status: { not: TaskStatus.DONE },
+      },
+    },
+    select: {
+      userId: true,
+      task: {
+        select: {
+          estimateHours: true,
+        },
+      },
+    },
+  });
+
+  const map = new Map<string, MemberWorkloadDTO>();
+  for (const row of rows) {
+    const current = map.get(row.userId) ?? { activeTaskCount: 0, activeEstimateHours: 0 };
+    current.activeTaskCount += 1;
+    current.activeEstimateHours += row.task.estimateHours ?? 0;
+    map.set(row.userId, current);
+  }
+  return map;
 }
 
 export function mapReferenceLinks(value: Prisma.JsonValue | null | undefined): string[] {
@@ -259,6 +303,8 @@ export const taskSummarySelect = {
     select: {
       dependsOnTask: {
         select: {
+          id: true,
+          title: true,
           status: true,
         },
       },
@@ -369,9 +415,16 @@ type RawTaskDetail = Prisma.TaskGetPayload<{ select: typeof taskDetailSelect }>;
 
 export function mapTaskSummary(row: RawTaskSummary, now: Date): TaskSummaryDTO {
   const dependencyCount = row.dependencies.length;
-  const blockedByCount = row.dependencies.filter(
+  const blockingDependencies = row.dependencies.filter(
     (dep) => dep.dependsOnTask.status !== TaskStatus.DONE
-  ).length;
+  );
+  const blockedByCount = blockingDependencies.length;
+  const blockedByTasks: TaskBlockerRefDTO[] = blockingDependencies.map((dep) => ({
+    id: dep.dependsOnTask.id,
+    code: formatTaskCode(dep.dependsOnTask.id),
+    title: dep.dependsOnTask.title,
+    status: dep.dependsOnTask.status,
+  }));
 
   return {
     id: row.id,
@@ -395,6 +448,7 @@ export function mapTaskSummary(row: RawTaskSummary, now: Date): TaskSummaryDTO {
     assignees: row.assignees,
     dependencyCount,
     blockedByCount,
+    blockedByTasks,
     dependentCount: row._count.dependents,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -448,6 +502,14 @@ function mapTaskDetail(row: RawTaskDetail, now: Date): TaskDetailDTO {
     dependencyCount: dependencies.length,
     blockedByCount: dependencies.filter((dep) => dep.dependsOnTask.status !== TaskStatus.DONE)
       .length,
+    blockedByTasks: dependencies
+      .filter((dep) => dep.dependsOnTask.status !== TaskStatus.DONE)
+      .map((dep) => ({
+        id: dep.dependsOnTask.id,
+        code: dep.dependsOnTask.code,
+        title: dep.dependsOnTask.title,
+        status: dep.dependsOnTask.status,
+      })),
     dependentCount: dependents.length,
     dependencies,
     dependents,

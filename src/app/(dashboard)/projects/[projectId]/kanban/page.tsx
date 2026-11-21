@@ -115,6 +115,7 @@ export default async function ProjectKanbanPage({ params, searchParams }: Projec
 
       <KanbanBoardClient
         projectId={project.id}
+        currentUserId={actor.userId}
         initialBoard={board}
         sprints={sprints}
         assignableMembers={assignableMembers}

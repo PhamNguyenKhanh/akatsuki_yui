@@ -30,9 +30,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CopyZaloButton } from "@/components/shared/copy-zalo-button";
 import { ProjectStatusBadge, RoleBadge, SprintStatusBadge } from "@/components/shared/status-badge";
 import { MyAssignedTasksCard } from "@/components/tasks/my-assigned-tasks-card";
 import { formatHcmDateTimeVi, formatHcmDateVi } from "@/lib/timezone";
+import { formatDashboardZaloSummary } from "@/lib/zalo-summary";
 import type { OperationalDashboardDTO } from "@/modules/dashboard/dashboard.service";
 
 interface OperationalDashboardClientProps {
@@ -183,6 +185,34 @@ export function OperationalDashboardClient({
             </div>
 
             <div className="flex flex-wrap gap-2">
+              <CopyZaloButton
+                getText={() =>
+                  formatDashboardZaloSummary({
+                    projectName: selectedProject.name,
+                    leaderName: selectedProject.leaderName,
+                    activeMemberCount: selectedProject.activeMemberCount,
+                    taskSummary: permissions.canReadTasks ? taskSummary : null,
+                    timelineText: timelineProgress
+                      ? getTimelineStateDescription(timelineProgress)
+                      : null,
+                    sprints: permissions.canReadSprints
+                      ? displayedSprints.map((s) => ({
+                          name: s.name,
+                          doneCount: s.taskStats.doneCount,
+                          totalTasks: s.taskStats.totalTasks,
+                          progressPercent: s.taskStats.progressPercent,
+                          reviewCount: s.taskStats.reviewCount,
+                          overdueCount: s.taskStats.overdueCount,
+                        }))
+                      : [],
+                    dashboardUrl:
+                      typeof window !== "undefined"
+                        ? `${window.location.origin}/dashboard?projectId=${encodeURIComponent(selectedProject.id)}`
+                        : undefined,
+                  })
+                }
+                successMessage={`Đã copy báo cáo nhanh "${selectedProject.name}" chuẩn Zalo.`}
+              />
               <Button asChild variant="outline" size="sm">
                 <Link href={`/projects/${selectedProject.id}`}>
                   Chi tiết Project

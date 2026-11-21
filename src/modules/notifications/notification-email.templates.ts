@@ -22,6 +22,7 @@ const TYPE_BADGE_LABELS: Record<NotificationType, string> = {
   TASK_SUBMITTED_FOR_REVIEW: "Task chờ phê duyệt (Review)",
   TASK_REVIEW_APPROVED: "Task đã được phê duyệt",
   TASK_REVIEW_REJECTED: "Task cần chỉnh sửa lại",
+  TASK_COMMENT_MENTION: "Nhắc đến bạn trong bình luận Task",
   TASK_DEADLINE_REMINDER: "Nhắc hạn Deadline Task",
   SYSTEM: "Thông báo Hệ thống",
 };

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ProjectMeetingStatus, ProjectStatus } from "@prisma/client";
 import {
@@ -10,6 +11,7 @@ import {
   Copy,
   ExternalLink,
   Link2,
+  ListPlus,
   Loader2,
   Pencil,
   Plus,
@@ -42,6 +44,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { formatHcmDateVi } from "@/lib/timezone";
+import { formatMeetingZaloSummary } from "@/lib/zalo-summary";
+import { CopyZaloButton } from "@/components/shared/copy-zalo-button";
 import {
   cancelProjectMeetingAction,
   createMeetLinkAction,
@@ -464,6 +468,43 @@ export function ProjectMeetingsClient({
                             >
                               <Copy className="h-3.5 w-3.5" />
                             </Button>
+                            <CopyZaloButton
+                              getText={() =>
+                                formatMeetingZaloSummary({
+                                  title: meeting.title,
+                                  status: meeting.status,
+                                  isOngoing,
+                                  isPast,
+                                  dateText: formatHcmDateVi(meeting.date),
+                                  startTime: meeting.startTime,
+                                  endTime: meeting.endTime,
+                                  meetUrl: meeting.meetUrl,
+                                  participantNames: meeting.participants.map((p) => p.fullName),
+                                  description: meeting.description,
+                                  meetingsUrl:
+                                    typeof window !== "undefined"
+                                      ? `${window.location.origin}/projects/${projectId}/meetings`
+                                      : undefined,
+                                })
+                              }
+                              successMessage="Đã copy biên bản cuộc họp chuẩn Zalo."
+                            />
+                            {!isArchived && (
+                              <Button asChild size="sm" variant="outline" title="Tạo Task từ cuộc họp">
+                                <Link
+                                  href={`/projects/${projectId}/tasks/new?title=${encodeURIComponent(
+                                    `[Họp] ${meeting.title}`
+                                  )}${
+                                    meeting.description
+                                      ? `&description=${encodeURIComponent(meeting.description)}`
+                                      : ""
+                                  }`}
+                                >
+                                  <ListPlus className="h-3.5 w-3.5" />
+                                  <span>Tạo Task</span>
+                                </Link>
+                              </Button>
+                            )}
                             {canManage && !isCancelled && !isPast && (
                               <Button
                                 type="button"

@@ -44,6 +44,8 @@ export interface TaskAssignableMemberOption {
   userId: string;
   fullName: string;
   email: string;
+  activeTaskCount?: number;
+  activeEstimateHours?: number;
 }
 
 interface TaskListClientProps {
@@ -412,16 +414,49 @@ export function TaskListClient({
                           </div>
                         )}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-xs">
+                      <TableCell className="text-xs">
                         {task.dependencyCount === 0 ? (
                           <span className="text-muted-foreground">Không</span>
                         ) : task.blockedByCount > 0 ? (
-                          <Badge
-                            variant="outline"
-                            className="border-amber-300 bg-amber-50 text-amber-800"
-                          >
-                            Chờ {task.blockedByCount}/{task.dependencyCount} chưa DONE
-                          </Badge>
+                          <div className="flex flex-wrap items-center gap-1">
+                            {task.blockedByTasks && task.blockedByTasks.length > 0 ? (
+                              <>
+                                {task.blockedByTasks.slice(0, 2).map((blocker) => (
+                                  <Link
+                                    key={blocker.id}
+                                    href={`/projects/${projectId}/tasks/${blocker.id}`}
+                                    title={blocker.title}
+                                  >
+                                    <Badge
+                                      variant="outline"
+                                      className="border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                                    >
+                                      Đang chờ {blocker.code}
+                                    </Badge>
+                                  </Link>
+                                ))}
+                                {task.blockedByTasks.length > 2 && (
+                                  <Badge
+                                    variant="outline"
+                                    className="border-amber-300 bg-amber-50 text-amber-800"
+                                    title={task.blockedByTasks
+                                      .slice(2)
+                                      .map((b) => `[${b.code}] ${b.title}`)
+                                      .join("\n")}
+                                  >
+                                    +{task.blockedByTasks.length - 2}
+                                  </Badge>
+                                )}
+                              </>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="border-amber-300 bg-amber-50 text-amber-800"
+                              >
+                                Đang chờ {task.blockedByCount} Task
+                              </Badge>
+                            )}
+                          </div>
                         ) : (
                           <Badge
                             variant="outline"

@@ -15,10 +15,14 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { sanitizeExternalHttpUrl } from "@/lib/safe-url";
+import { formatTaskZaloSummary } from "@/lib/zalo-summary";
+import { CopyZaloButton } from "@/components/shared/copy-zalo-button";
 import { TaskPriorityBadge, TaskStatusBadge } from "@/components/shared/status-badge";
 import { TaskAssigneesCard } from "@/components/tasks/task-assignees-card";
+import { TaskCommentsPanel } from "@/components/tasks/task-comments-panel";
 import { TaskDependenciesCard } from "@/components/tasks/task-dependencies-card";
 import { TaskHistoryTimeline } from "@/components/tasks/task-history-timeline";
+import { TaskSubtasksCard } from "@/components/tasks/task-subtasks-card";
 import type { TaskAssignableMemberOption } from "@/components/tasks/task-list-client";
 import { TaskReviewModal, type TaskReviewModalMode } from "@/components/tasks/task-review-modal";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -28,6 +32,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { updateTaskAction, updateTaskStatusAction } from "@/modules/tasks/task.actions";
+import type {
+  TaskCommentDTO,
+  TaskMentionableMemberDTO,
+} from "@/modules/tasks/task-comment.service";
+import type { TaskSubtaskDTO } from "@/modules/tasks/task-subtask.service";
 import type { TaskHistoryItemDTO } from "@/modules/tasks/task-history.repository";
 import type { ProjectTaskOptionDTO, TaskDetailDTO } from "@/modules/tasks/task.repository";
 
@@ -43,7 +52,11 @@ function formatDateVi(value: Date | string | null): string {
 
 interface TaskDetailPanelProps {
   task: TaskDetailDTO;
+  currentUserId: string;
   assignableMembers: TaskAssignableMemberOption[];
+  mentionableMembers: TaskMentionableMemberDTO[];
+  initialComments: TaskCommentDTO[];
+  initialSubtasks: TaskSubtaskDTO[];
   candidateTasks: ProjectTaskOptionDTO[];
   initialHistory: {
     items: TaskHistoryItemDTO[];
@@ -66,7 +79,11 @@ interface TaskDetailPanelProps {
 
 export function TaskDetailPanel({
   task,
+  currentUserId,
   assignableMembers,
+  mentionableMembers,
+  initialComments,
+  initialSubtasks,
   candidateTasks,
   initialHistory,
   capabilities,
@@ -244,6 +261,29 @@ export function TaskDetailPanel({
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <CopyZaloButton
+              getText={() =>
+                formatTaskZaloSummary({
+                  code: task.code,
+                  title: task.title,
+                  projectName: task.project.name,
+                  sprintName: task.sprint?.name ?? null,
+                  status: task.status,
+                  priority: task.priority,
+                  deadlineText: formatDateVi(task.deadline),
+                  isOverdue: task.isOverdue,
+                  blockedByCount: task.blockedByCount,
+                  assigneeNames: task.assignees.map((a) => a.user.fullName),
+                  progressNotes: task.progressNotes,
+                  referenceLinks: task.referenceLinks,
+                  taskUrl:
+                    typeof window !== "undefined"
+                      ? `${window.location.origin}/projects/${task.projectId}/tasks/${task.id}`
+                      : undefined,
+                })
+              }
+              successMessage={`Đã copy tóm tắt ${task.code} chuẩn Zalo.`}
+            />
             {canStartWork && (
               <Button type="button" size="sm" disabled={statusBusy} onClick={handleStartWork}>
                 <Play className="h-4 w-4" />
@@ -330,6 +370,13 @@ export function TaskDetailPanel({
           </div>
         </CardContent>
       </Card>
+
+      <TaskSubtasksCard
+        projectId={task.projectId}
+        taskId={task.id}
+        initialSubtasks={initialSubtasks}
+        canEdit={canEditProgress}
+      />
 
       <Card>
         <CardHeader>
@@ -437,6 +484,16 @@ export function TaskDetailPanel({
           isArchived={isReadOnlyTask}
         />
       </div>
+
+      <TaskCommentsPanel
+        projectId={task.projectId}
+        taskId={task.id}
+        currentUserId={currentUserId}
+        isLeaderOrAdmin={capabilities.isLeaderOrAdmin}
+        isArchived={isArchived}
+        initialComments={initialComments}
+        mentionableMembers={mentionableMembers}
+      />
 
       <TaskHistoryTimeline
         key={`${task.id}-${String(task.updatedAt)}`}

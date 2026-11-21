@@ -110,15 +110,31 @@ export function KanbanTaskCard({
 
         {card.estimateHours !== null && <span>· {card.estimateHours}h</span>}
 
-        {card.blockedByCount > 0 && card.status !== TaskStatus.DONE && (
-          <Badge
-            variant="outline"
-            className="inline-flex items-center gap-1 border-amber-300 bg-amber-50 text-[11px] text-amber-800"
-          >
-            <Link2 className="h-3 w-3" />
-            <span>Chờ {card.blockedByCount} Task</span>
-          </Badge>
-        )}
+        {card.blockedByCount > 0 && card.status !== TaskStatus.DONE && (() => {
+          const blockers = card.blockedByTasks ?? [];
+          const label =
+            blockers.length === 1
+              ? `Đang chờ ${blockers[0]!.code}`
+              : blockers.length === 2
+                ? `Đang chờ ${blockers[0]!.code}, ${blockers[1]!.code}`
+                : blockers.length > 2
+                  ? `Đang chờ ${blockers[0]!.code} +${blockers.length - 1}`
+                  : `Đang chờ ${card.blockedByCount} Task`;
+          const tooltip =
+            blockers.length > 0
+              ? blockers.map((b) => `[${b.code}] ${b.title}`).join("\n")
+              : undefined;
+          return (
+            <Badge
+              variant="outline"
+              title={tooltip}
+              className="inline-flex items-center gap-1 border-amber-300 bg-amber-50 text-[11px] text-amber-800"
+            >
+              <Link2 className="h-3 w-3 shrink-0" />
+              <span>{label}</span>
+            </Badge>
+          );
+        })()}
       </div>
 
       {card.assignees.length > 0 ? (

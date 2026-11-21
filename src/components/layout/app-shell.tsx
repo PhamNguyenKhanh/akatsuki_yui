@@ -27,6 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { NotificationBell } from "@/components/features/notifications/notification-bell";
+import { GlobalCommandPalette } from "@/components/layout/global-command-palette";
 import { RoleBadge } from "@/components/shared/status-badge";
 import { ThemeSwitcher } from "@/components/theme/theme-switcher";
 import { Button } from "@/components/ui/button";
@@ -484,9 +485,10 @@ export function AppShell({
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            <GlobalCommandPalette />
             <ThemeSwitcher />
             {user.permissions.includes(PERMISSIONS.NOTIFICATION_READ) && (
-              <NotificationBell initialUnreadCount={initialUnreadCount} />
+              <NotificationBell userId={user.userId} initialUnreadCount={initialUnreadCount} />
             )}
             <div className="hidden items-center gap-2 sm:flex">
               <Link

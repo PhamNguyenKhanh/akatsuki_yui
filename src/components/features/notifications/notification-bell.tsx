@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { sanitizeInternalTargetPath } from "@/lib/safe-url";
+import { getPusherClient } from "@/lib/pusher-client";
+import { getUserNotificationsChannel, PUSHER_EVENTS } from "@/lib/pusher-channels";
 import { cn } from "@/lib/utils";
 import { usePropSyncedState } from "@/lib/use-prop-synced-state";
 import {
@@ -25,7 +27,13 @@ function formatShortTime(isoString: string): string {
   }).format(new Date(isoString));
 }
 
-export function NotificationBell({ initialUnreadCount = 0 }: { initialUnreadCount?: number }) {
+export function NotificationBell({
+  userId,
+  initialUnreadCount = 0,
+}: {
+  userId?: string;
+  initialUnreadCount?: number;
+}) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [unreadCount, setUnreadCount] = usePropSyncedState<number>(initialUnreadCount);
@@ -69,6 +77,47 @@ export function NotificationBell({ initialUnreadCount = 0 }: { initialUnreadCoun
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [open]);
+
+  React.useEffect(() => {
+    if (!userId) return;
+    const pusher = getPusherClient();
+    if (!pusher) return;
+
+    const channelName = getUserNotificationsChannel(userId);
+    const channel = pusher.subscribe(channelName);
+
+    const handleNotificationCreated = (payload: {
+      title?: string;
+      message?: string;
+      targetUrl?: string | null;
+    }) => {
+      setUnreadCount((prev) => prev + 1);
+      if (payload?.title) {
+        toast.info(payload.title, {
+          description: payload.message || undefined,
+          action: payload.targetUrl
+            ? {
+                label: "Xem",
+                onClick: () => {
+                  const safeUrl = sanitizeInternalTargetPath(payload.targetUrl);
+                  if (safeUrl) router.push(safeUrl);
+                },
+              }
+            : undefined,
+        });
+      }
+      if (open) {
+        void fetchPreview();
+      }
+    };
+
+    channel.bind(PUSHER_EVENTS.NOTIFICATION_CREATED, handleNotificationCreated);
+
+    return () => {
+      channel.unbind(PUSHER_EVENTS.NOTIFICATION_CREATED, handleNotificationCreated);
+      pusher.unsubscribe(channelName);
+    };
+  }, [userId, open, fetchPreview, router, setUnreadCount]);
 
   async function handleItemClick(item: NotificationDTO) {
     if (!item.isRead) {

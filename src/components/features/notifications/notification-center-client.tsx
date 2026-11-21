@@ -30,6 +30,7 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   TASK_SUBMITTED_FOR_REVIEW: "Gửi duyệt Task",
   TASK_REVIEW_APPROVED: "Task được duyệt",
   TASK_REVIEW_REJECTED: "Task cần chỉnh sửa",
+  TASK_COMMENT_MENTION: "Nhắc tên trong Task",
   TASK_DEADLINE_REMINDER: "Nhắc hạn Deadline",
   SYSTEM: "Hệ thống",
 };
