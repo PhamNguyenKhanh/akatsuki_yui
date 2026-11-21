@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ProjectStatus, TaskPriority, TaskStatus } from "@prisma/client";
-import { AlertCircle, Layers, Search } from "lucide-react";
+import { AlertCircle, Layers, Search, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { KanbanTaskCard } from "@/components/kanban/kanban-task-card";
 import type { TaskAssignableMemberOption } from "@/components/tasks/task-list-client";
@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { usePropSyncedState } from "@/lib/use-prop-synced-state";
 import { cn } from "@/lib/utils";
 import type { KanbanBoardDTO, KanbanCardItemDTO } from "@/modules/sprints/kanban.service";
 import type { SprintSummaryDTO } from "@/modules/sprints/sprint.repository";
@@ -44,8 +45,11 @@ const KANBAN_COLUMNS: Array<{
   { status: TaskStatus.DONE, title: "Done", headerClass: "border-emerald-300 bg-emerald-50/80" },
 ];
 
+const MY_TASKS_STORAGE_KEY = "akatsuki:kanban:my-tasks";
+
 interface KanbanBoardClientProps {
   projectId: string;
+  currentUserId: string;
   initialBoard: KanbanBoardDTO;
   sprints: SprintSummaryDTO[];
   assignableMembers: TaskAssignableMemberOption[];
@@ -95,6 +99,7 @@ function getTransitionDeniedMessage(card: KanbanCardItemDTO, targetStatus: TaskS
 
 export function KanbanBoardClient({
   projectId,
+  currentUserId,
   initialBoard,
   sprints,
   assignableMembers,
@@ -111,7 +116,7 @@ export function KanbanBoardClient({
   const [priorityFilter, setPriorityFilter] = React.useState<string>(
     initialFilters.priority ?? ALL_VALUE
   );
-  const [assigneeFilter, setAssigneeFilter] = React.useState<string>(
+  const [assigneeFilter, setAssigneeFilter] = usePropSyncedState<string>(
     initialFilters.unassignedOnly ? UNASSIGNED_VALUE : (initialFilters.assigneeId ?? ALL_VALUE)
   );
   const [overdueFilter, setOverdueFilter] = React.useState<string>(
@@ -129,6 +134,32 @@ export function KanbanBoardClient({
   }>({ open: false, mode: "submit", card: null });
 
   const isArchived = board.project.status === ProjectStatus.ARCHIVED;
+  const isMyTasksOnly = assigneeFilter === currentUserId;
+
+  React.useEffect(() => {
+    if (initialFilters.assigneeId || initialFilters.unassignedOnly) {
+      return;
+    }
+    try {
+      if (window.localStorage.getItem(MY_TASKS_STORAGE_KEY) === "1") {
+        router.replace(buildBoardUrl({ assignee: currentUserId }));
+      }
+    } catch {
+      // Ignore storage access errors in restricted browsers
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function handleToggleMyTasks() {
+    const nextAssignee = isMyTasksOnly ? ALL_VALUE : currentUserId;
+    try {
+      window.localStorage.setItem(MY_TASKS_STORAGE_KEY, isMyTasksOnly ? "0" : "1");
+    } catch {
+      // Ignore storage access errors
+    }
+    setAssigneeFilter(nextAssignee);
+    router.push(buildBoardUrl({ assignee: nextAssignee }));
+  }
 
   function buildBoardUrl(overrides: {
     scope?: "PROJECT" | "SPRINT" | "BACKLOG";
@@ -327,6 +358,16 @@ export function KanbanBoardClient({
             </div>
 
             <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={isMyTasksOnly ? "default" : "outline"}
+                onClick={handleToggleMyTasks}
+                aria-pressed={isMyTasksOnly}
+              >
+                <UserCheck className="h-4 w-4" />
+                <span>Việc của tôi</span>
+              </Button>
               <Button asChild size="sm" variant="outline">
                 <Link href={`/projects/${projectId}/backlog`}>
                   <Layers className="h-4 w-4" />
@@ -386,6 +427,14 @@ export function KanbanBoardClient({
               value={assigneeFilter}
               onValueChange={(value) => {
                 setAssigneeFilter(value);
+                try {
+                  window.localStorage.setItem(
+                    MY_TASKS_STORAGE_KEY,
+                    value === currentUserId ? "1" : "0"
+                  );
+                } catch {
+                  // Ignore storage access errors
+                }
                 router.push(buildBoardUrl({ assignee: value }));
               }}
             >
