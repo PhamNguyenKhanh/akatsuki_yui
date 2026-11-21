@@ -486,7 +486,7 @@ export function AppShell({
           <div className="flex items-center gap-2 sm:gap-3">
             <ThemeSwitcher />
             {user.permissions.includes(PERMISSIONS.NOTIFICATION_READ) && (
-              <NotificationBell initialUnreadCount={initialUnreadCount} />
+              <NotificationBell userId={user.userId} initialUnreadCount={initialUnreadCount} />
             )}
             <div className="hidden items-center gap-2 sm:flex">
               <Link
