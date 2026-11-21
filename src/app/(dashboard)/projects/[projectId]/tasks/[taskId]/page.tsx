@@ -12,6 +12,10 @@ import { hasPermission } from "@/modules/authorization/policy.service";
 import { requirePermissionOrRedirect } from "@/modules/authorization/require-auth";
 import { listProjectMembersService } from "@/modules/project-members/member.service";
 import { isWorkspaceAdmin } from "@/modules/projects/project.access";
+import {
+  listTaskCommentsService,
+  listTaskMentionableMembersService,
+} from "@/modules/tasks/task-comment.service";
 import { listTaskHistoryService } from "@/modules/tasks/task-history.service";
 import type { TaskDetailDTO } from "@/modules/tasks/task.repository";
 import { getTaskDetailService, listProjectTaskOptionsService } from "@/modules/tasks/task.service";
@@ -53,20 +57,23 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
 
   const isArchived = task.project.status === ProjectStatus.ARCHIVED;
 
-  const [members, candidateTasks, initialHistory] = await Promise.all([
-    !isArchived &&
-    isLeaderOrAdmin &&
-    canAssignTask &&
-    hasPermission(actor, PERMISSIONS.PROJECT_READ)
-      ? listProjectMembersService(actor, task.projectId, { includeHistory: false })
-      : Promise.resolve([]),
-    !isArchived && isLeaderOrAdmin && canUpdateTask
-      ? listProjectTaskOptionsService(actor, task.projectId, task.id)
-      : Promise.resolve([]),
-    canReadHistory
-      ? listTaskHistoryService(actor, task.id, { page: 1, pageSize: 10 })
-      : Promise.resolve(null),
-  ]);
+  const [members, candidateTasks, initialHistory, initialComments, mentionableMembers] =
+    await Promise.all([
+      !isArchived &&
+      isLeaderOrAdmin &&
+      canAssignTask &&
+      hasPermission(actor, PERMISSIONS.PROJECT_READ)
+        ? listProjectMembersService(actor, task.projectId, { includeHistory: false })
+        : Promise.resolve([]),
+      !isArchived && isLeaderOrAdmin && canUpdateTask
+        ? listProjectTaskOptionsService(actor, task.projectId, task.id)
+        : Promise.resolve([]),
+      canReadHistory
+        ? listTaskHistoryService(actor, task.id, { page: 1, pageSize: 10 })
+        : Promise.resolve(null),
+      listTaskCommentsService(actor, task.id),
+      listTaskMentionableMembersService(actor, task.id),
+    ]);
 
   const assignableMembers: TaskAssignableMemberOption[] = members
     .filter((member) => member.projectRole !== ProjectMemberRole.INSTRUCTOR)
@@ -105,7 +112,10 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
 
       <TaskDetailPanel
         task={task}
+        currentUserId={actor.userId}
         assignableMembers={assignableMembers}
+        mentionableMembers={mentionableMembers}
+        initialComments={initialComments}
         candidateTasks={candidateTasks}
         initialHistory={initialHistory}
         capabilities={{
