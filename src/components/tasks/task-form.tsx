@@ -45,6 +45,10 @@ interface TaskFormProps {
   mode: "create" | "edit";
   projectId: string;
   initialTask?: TaskDetailDTO;
+  initialValues?: {
+    title?: string;
+    description?: string;
+  };
   assignableMembers?: TaskAssignableMemberOption[];
   canAssignOnCreate?: boolean;
 }
@@ -53,6 +57,7 @@ export function TaskForm({
   mode,
   projectId,
   initialTask,
+  initialValues,
   assignableMembers = [],
   canAssignOnCreate = false,
 }: TaskFormProps) {
@@ -67,8 +72,8 @@ export function TaskForm({
     formState: { isSubmitting },
   } = useForm<TaskFormValues>({
     defaultValues: {
-      title: initialTask?.title ?? "",
-      description: initialTask?.description ?? "",
+      title: initialTask?.title ?? initialValues?.title ?? "",
+      description: initialTask?.description ?? initialValues?.description ?? "",
       priority: initialTask?.priority ?? TaskPriority.MEDIUM,
       startDate: toDateInputValue(initialTask?.startDate),
       deadline: toDateInputValue(initialTask?.deadline),
@@ -293,7 +298,9 @@ export function TaskForm({
                         />
                         <span className="font-medium text-slate-900">{member.fullName}</span>
                         <span className="truncate text-xs text-muted-foreground">
-                          ({member.email})
+                          {member.activeTaskCount !== undefined
+                            ? `(${member.activeTaskCount} task · ${member.activeEstimateHours ?? 0}h)`
+                            : `(${member.email})`}
                         </span>
                       </label>
                     );

@@ -22,6 +22,7 @@ import { TaskAssigneesCard } from "@/components/tasks/task-assignees-card";
 import { TaskCommentsPanel } from "@/components/tasks/task-comments-panel";
 import { TaskDependenciesCard } from "@/components/tasks/task-dependencies-card";
 import { TaskHistoryTimeline } from "@/components/tasks/task-history-timeline";
+import { TaskSubtasksCard } from "@/components/tasks/task-subtasks-card";
 import type { TaskAssignableMemberOption } from "@/components/tasks/task-list-client";
 import { TaskReviewModal, type TaskReviewModalMode } from "@/components/tasks/task-review-modal";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -35,6 +36,7 @@ import type {
   TaskCommentDTO,
   TaskMentionableMemberDTO,
 } from "@/modules/tasks/task-comment.service";
+import type { TaskSubtaskDTO } from "@/modules/tasks/task-subtask.service";
 import type { TaskHistoryItemDTO } from "@/modules/tasks/task-history.repository";
 import type { ProjectTaskOptionDTO, TaskDetailDTO } from "@/modules/tasks/task.repository";
 
@@ -54,6 +56,7 @@ interface TaskDetailPanelProps {
   assignableMembers: TaskAssignableMemberOption[];
   mentionableMembers: TaskMentionableMemberDTO[];
   initialComments: TaskCommentDTO[];
+  initialSubtasks: TaskSubtaskDTO[];
   candidateTasks: ProjectTaskOptionDTO[];
   initialHistory: {
     items: TaskHistoryItemDTO[];
@@ -80,6 +83,7 @@ export function TaskDetailPanel({
   assignableMembers,
   mentionableMembers,
   initialComments,
+  initialSubtasks,
   candidateTasks,
   initialHistory,
   capabilities,
@@ -366,6 +370,13 @@ export function TaskDetailPanel({
           </div>
         </CardContent>
       </Card>
+
+      <TaskSubtasksCard
+        projectId={task.projectId}
+        taskId={task.id}
+        initialSubtasks={initialSubtasks}
+        canEdit={canEditProgress}
+      />
 
       <Card>
         <CardHeader>

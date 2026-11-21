@@ -117,7 +117,10 @@ export function TaskAssigneesCard({
                 <SelectContent>
                   {availableMembers.map((member) => (
                     <SelectItem key={member.userId} value={member.userId}>
-                      {member.fullName} ({member.email})
+                      {member.fullName}
+                      {member.activeTaskCount !== undefined
+                        ? ` (${member.activeTaskCount} task · ${member.activeEstimateHours ?? 0}h)`
+                        : ` (${member.email})`}
                     </SelectItem>
                   ))}
                 </SelectContent>

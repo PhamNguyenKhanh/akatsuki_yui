@@ -96,6 +96,11 @@ export interface TaskBlockerRefDTO {
   status: TaskStatus;
 }
 
+export interface MemberWorkloadDTO {
+  activeTaskCount: number;
+  activeEstimateHours: number;
+}
+
 export interface TaskSummaryDTO {
   id: string;
   code: string;
@@ -169,6 +174,37 @@ export interface ProjectTaskOptionDTO {
   status: TaskStatus;
   priority: TaskPriority;
   deadline: Date;
+}
+
+export async function getProjectMemberWorkloads(
+  projectId: string
+): Promise<Map<string, MemberWorkloadDTO>> {
+  const rows = await prisma.taskAssignee.findMany({
+    where: {
+      removedAt: null,
+      task: {
+        projectId,
+        status: { not: TaskStatus.DONE },
+      },
+    },
+    select: {
+      userId: true,
+      task: {
+        select: {
+          estimateHours: true,
+        },
+      },
+    },
+  });
+
+  const map = new Map<string, MemberWorkloadDTO>();
+  for (const row of rows) {
+    const current = map.get(row.userId) ?? { activeTaskCount: 0, activeEstimateHours: 0 };
+    current.activeTaskCount += 1;
+    current.activeEstimateHours += row.task.estimateHours ?? 0;
+    map.set(row.userId, current);
+  }
+  return map;
 }
 
 export function mapReferenceLinks(value: Prisma.JsonValue | null | undefined): string[] {

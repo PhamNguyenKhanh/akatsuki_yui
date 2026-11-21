@@ -15,6 +15,7 @@ import { listProjectMembersService } from "@/modules/project-members/member.serv
 import { isWorkspaceAdmin } from "@/modules/projects/project.access";
 import type { ProjectDTO } from "@/modules/projects/project.repository";
 import { getProjectDetailService } from "@/modules/projects/project.service";
+import { getProjectMemberWorkloads } from "@/modules/tasks/task.repository";
 
 export const metadata: Metadata = {
   title: "Tạo Task mới",
@@ -22,11 +23,16 @@ export const metadata: Metadata = {
 
 type NewTaskPageProps = {
   params: Promise<{ projectId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function NewTaskPage({ params }: NewTaskPageProps) {
+export default async function NewTaskPage({ params, searchParams }: NewTaskPageProps) {
   const actor = await requirePermissionOrRedirect(PERMISSIONS.TASK_CREATE);
   const { projectId } = await params;
+  const query = await searchParams;
+  const initialTitle = typeof query.title === "string" ? query.title.slice(0, 200) : undefined;
+  const initialDescription =
+    typeof query.description === "string" ? query.description.slice(0, 4000) : undefined;
 
   let project: ProjectDTO;
   try {
@@ -44,17 +50,25 @@ export default async function NewTaskPage({ params }: NewTaskPageProps) {
     redirect("/access-denied?reason=forbidden");
   }
 
-  const members = hasPermission(actor, PERMISSIONS.PROJECT_READ)
-    ? await listProjectMembersService(actor, project.id, { includeHistory: false })
-    : [];
+  const [members, workloads] = hasPermission(actor, PERMISSIONS.PROJECT_READ)
+    ? await Promise.all([
+        listProjectMembersService(actor, project.id, { includeHistory: false }),
+        getProjectMemberWorkloads(project.id),
+      ])
+    : [[], new Map()];
 
   const assignableMembers: TaskAssignableMemberOption[] = members
     .filter((member) => member.projectRole !== ProjectMemberRole.INSTRUCTOR)
-    .map((member) => ({
-      userId: member.userId,
-      fullName: member.user.fullName,
-      email: member.user.email,
-    }));
+    .map((member) => {
+      const w = workloads.get(member.userId);
+      return {
+        userId: member.userId,
+        fullName: member.user.fullName,
+        email: member.user.email,
+        activeTaskCount: w?.activeTaskCount ?? 0,
+        activeEstimateHours: w?.activeEstimateHours ?? 0,
+      };
+    });
 
   return (
     <div className="space-y-6">
@@ -87,6 +101,7 @@ export default async function NewTaskPage({ params }: NewTaskPageProps) {
         <TaskForm
           mode="create"
           projectId={project.id}
+          initialValues={{ title: initialTitle, description: initialDescription }}
           assignableMembers={assignableMembers}
           canAssignOnCreate={hasPermission(actor, PERMISSIONS.TASK_ASSIGN)}
         />
