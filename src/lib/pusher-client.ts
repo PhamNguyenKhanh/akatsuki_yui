@@ -5,9 +5,11 @@ import PusherClient from "pusher-js";
 let cachedClient: PusherClient | null | undefined;
 
 export function isPusherClientConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_PUSHER_KEY?.trim() && process.env.NEXT_PUBLIC_PUSHER_CLUSTER?.trim()
-  );
+  const key = (process.env.NEXT_PUBLIC_PUSHER_KEY ?? process.env.NEXT_PUBLIC_PUSHER_APP_KEY)?.trim();
+  const cluster = (
+    process.env.NEXT_PUBLIC_PUSHER_CLUSTER ?? process.env.NEXT_PUBLIC_PUSHER_APP_CLUSTER
+  )?.trim();
+  return Boolean(key && cluster);
 }
 
 export function getPusherClient(): PusherClient | null {
@@ -19,8 +21,10 @@ export function getPusherClient(): PusherClient | null {
     return cachedClient;
   }
 
-  const key = process.env.NEXT_PUBLIC_PUSHER_KEY?.trim();
-  const cluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER?.trim();
+  const key = (process.env.NEXT_PUBLIC_PUSHER_KEY ?? process.env.NEXT_PUBLIC_PUSHER_APP_KEY)?.trim();
+  const cluster = (
+    process.env.NEXT_PUBLIC_PUSHER_CLUSTER ?? process.env.NEXT_PUBLIC_PUSHER_APP_CLUSTER
+  )?.trim();
 
   if (!key || !cluster) {
     cachedClient = null;

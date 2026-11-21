@@ -10,9 +10,9 @@ export function getPusherServer(): Pusher | null {
   }
 
   const appId = process.env.PUSHER_APP_ID?.trim();
-  const key = process.env.PUSHER_KEY?.trim();
-  const secret = process.env.PUSHER_SECRET?.trim();
-  const cluster = process.env.PUSHER_CLUSTER?.trim();
+  const key = (process.env.PUSHER_KEY ?? process.env.PUSHER_APP_KEY)?.trim();
+  const secret = (process.env.PUSHER_SECRET ?? process.env.PUSHER_APP_SECRET)?.trim();
+  const cluster = (process.env.PUSHER_CLUSTER ?? process.env.PUSHER_APP_CLUSTER)?.trim();
 
   if (!appId || !key || !secret || !cluster) {
     cachedPusherServer = null;
