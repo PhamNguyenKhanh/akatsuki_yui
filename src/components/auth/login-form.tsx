@@ -108,7 +108,15 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="password">Mật khẩu</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Mật khẩu</Label>
+              <Link
+                href="/forgot-password"
+                className="text-xs font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground"
+              >
+                Quên mật khẩu?
+              </Link>
+            </div>
             <Input
               id="password"
               type="password"

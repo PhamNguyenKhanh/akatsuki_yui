@@ -44,6 +44,8 @@ export interface TaskAssignableMemberOption {
   userId: string;
   fullName: string;
   email: string;
+  activeTaskCount?: number;
+  activeEstimateHours?: number;
 }
 
 interface TaskListClientProps {

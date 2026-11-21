@@ -41,6 +41,7 @@ model User {
   reviewedTasks        TaskReview[]     @relation("TaskReviewReviewer")
   taskHistoryEntries   TaskHistory[]    @relation("TaskHistoryActor")
   taskComments         TaskComment[]    @relation("TaskCommentAuthor")
+  createdSubtasks      TaskSubtask[]    @relation("TaskSubtaskCreator")
   uploadedDocuments    Document[]       @relation("DocumentUploadedBy")
   notifications        Notification[]   @relation("NotificationRecipient")
   actedNotifications   Notification[]   @relation("NotificationActor")
@@ -305,6 +306,7 @@ model Task {
   reviews        TaskReview[]
   history        TaskHistory[]
   comments       TaskComment[]
+  subtasks       TaskSubtask[]
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
@@ -398,6 +400,23 @@ model TaskComment {
 
   @@index([taskId, createdAt])
   @@index([authorId])
+}
+
+model TaskSubtask {
+  id          String   @id @default(uuid()) @db.Uuid
+  taskId      String   @db.Uuid
+  createdById String   @db.Uuid
+  title       String   @db.VarChar(255)
+  isCompleted Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  task      Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdBy User @relation("TaskSubtaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([taskId, sortOrder, createdAt])
+  @@index([createdById])
 }
 
 enum DocumentCategory {

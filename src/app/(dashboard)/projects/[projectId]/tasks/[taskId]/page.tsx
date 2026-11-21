@@ -16,8 +16,12 @@ import {
   listTaskCommentsService,
   listTaskMentionableMembersService,
 } from "@/modules/tasks/task-comment.service";
+import { listTaskSubtasksService } from "@/modules/tasks/task-subtask.service";
 import { listTaskHistoryService } from "@/modules/tasks/task-history.service";
-import type { TaskDetailDTO } from "@/modules/tasks/task.repository";
+import {
+  getProjectMemberWorkloads,
+  type TaskDetailDTO,
+} from "@/modules/tasks/task.repository";
 import { getTaskDetailService, listProjectTaskOptionsService } from "@/modules/tasks/task.service";
 
 export const metadata: Metadata = {
@@ -57,31 +61,46 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
 
   const isArchived = task.project.status === ProjectStatus.ARCHIVED;
 
-  const [members, candidateTasks, initialHistory, initialComments, mentionableMembers] =
-    await Promise.all([
-      !isArchived &&
-      isLeaderOrAdmin &&
-      canAssignTask &&
-      hasPermission(actor, PERMISSIONS.PROJECT_READ)
-        ? listProjectMembersService(actor, task.projectId, { includeHistory: false })
-        : Promise.resolve([]),
-      !isArchived && isLeaderOrAdmin && canUpdateTask
-        ? listProjectTaskOptionsService(actor, task.projectId, task.id)
-        : Promise.resolve([]),
-      canReadHistory
-        ? listTaskHistoryService(actor, task.id, { page: 1, pageSize: 10 })
-        : Promise.resolve(null),
-      listTaskCommentsService(actor, task.id),
-      listTaskMentionableMembersService(actor, task.id),
-    ]);
+  const [
+    members,
+    candidateTasks,
+    initialHistory,
+    initialComments,
+    mentionableMembers,
+    initialSubtasks,
+  ] = await Promise.all([
+    !isArchived &&
+    isLeaderOrAdmin &&
+    canAssignTask &&
+    hasPermission(actor, PERMISSIONS.PROJECT_READ)
+      ? listProjectMembersService(actor, task.projectId, { includeHistory: false })
+      : Promise.resolve([]),
+    !isArchived && isLeaderOrAdmin && canUpdateTask
+      ? listProjectTaskOptionsService(actor, task.projectId, task.id)
+      : Promise.resolve([]),
+    canReadHistory
+      ? listTaskHistoryService(actor, task.id, { page: 1, pageSize: 10 })
+      : Promise.resolve(null),
+    listTaskCommentsService(actor, task.id),
+    listTaskMentionableMembersService(actor, task.id),
+    listTaskSubtasksService(actor, task.id),
+  ]);
+
+  const workloads =
+    members.length > 0 ? await getProjectMemberWorkloads(task.projectId) : new Map();
 
   const assignableMembers: TaskAssignableMemberOption[] = members
     .filter((member) => member.projectRole !== ProjectMemberRole.INSTRUCTOR)
-    .map((member) => ({
-      userId: member.userId,
-      fullName: member.user.fullName,
-      email: member.user.email,
-    }));
+    .map((member) => {
+      const w = workloads.get(member.userId);
+      return {
+        userId: member.userId,
+        fullName: member.user.fullName,
+        email: member.user.email,
+        activeTaskCount: w?.activeTaskCount ?? 0,
+        activeEstimateHours: w?.activeEstimateHours ?? 0,
+      };
+    });
 
   const isInstructorOnly = !isLeaderOrAdmin && !canUpdateTask && !canSubmitReview && !canReviewTask;
 
@@ -116,6 +135,7 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
         assignableMembers={assignableMembers}
         mentionableMembers={mentionableMembers}
         initialComments={initialComments}
+        initialSubtasks={initialSubtasks}
         candidateTasks={candidateTasks}
         initialHistory={initialHistory}
         capabilities={{

@@ -12,6 +12,8 @@ export const RATE_LIMIT_SCOPES = {
   AUTH_LOGIN_FAIL: "auth:login:fail",
   AUTH_REGISTER_IP: "auth:register:ip",
   AUTH_PASSWORD_CHANGE_USER: "auth:password_change:user",
+  AUTH_PASSWORD_RESET_IP: "auth:password_reset:ip",
+  AUTH_PASSWORD_RESET_EMAIL: "auth:password_reset:email",
   ADMIN_DELIVERY_RETRY_USER: "admin:delivery_retry:user",
   API_WRITE_ACTOR: "api:write:actor",
 } as const;
@@ -54,6 +56,20 @@ export const RATE_LIMIT_RULES: Record<RateLimitScope, RateLimitRule> = {
     windowMs: 15 * 60 * 1000,
     failClosed: true,
     blockMessage: "Bạn đã yêu cầu đổi mật khẩu quá nhiều lần. Vui lòng thử lại sau.",
+  },
+  [RATE_LIMIT_SCOPES.AUTH_PASSWORD_RESET_IP]: {
+    scope: RATE_LIMIT_SCOPES.AUTH_PASSWORD_RESET_IP,
+    limit: 10,
+    windowMs: 15 * 60 * 1000,
+    failClosed: true,
+    blockMessage: "Quá nhiều yêu cầu đặt lại mật khẩu từ địa chỉ mạng này. Vui lòng thử lại sau.",
+  },
+  [RATE_LIMIT_SCOPES.AUTH_PASSWORD_RESET_EMAIL]: {
+    scope: RATE_LIMIT_SCOPES.AUTH_PASSWORD_RESET_EMAIL,
+    limit: 3,
+    windowMs: 15 * 60 * 1000,
+    failClosed: true,
+    blockMessage: "Bạn đã yêu cầu gửi email đặt lại mật khẩu quá nhiều lần. Vui lòng thử lại sau 15 phút.",
   },
   [RATE_LIMIT_SCOPES.ADMIN_DELIVERY_RETRY_USER]: {
     scope: RATE_LIMIT_SCOPES.ADMIN_DELIVERY_RETRY_USER,
