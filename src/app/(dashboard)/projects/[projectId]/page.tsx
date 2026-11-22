@@ -88,7 +88,12 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
   const { listBacklogTasksService } = await import("@/modules/sprints/sprint-planning.service");
   const { ProjectSprintSummaryCard } =
     await import("@/components/sprints/project-sprint-summary-card");
-  const { listProjectDocumentsService } = await import("@/modules/documents/document.service");
+  const {
+    listPinnedProjectDocumentsService,
+    listProjectDocumentsService,
+  } = await import("@/modules/documents/document.service");
+  const { PinnedToolkitBar } =
+    await import("@/components/features/documents/pinned-toolkit-bar");
   const { ProjectDocumentSummaryCard } =
     await import("@/components/features/documents/project-document-summary-card");
 
@@ -102,6 +107,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
     projectSprints,
     backlogPreview,
     documentPreview,
+    pinnedDocuments,
   ] = await Promise.all([
     listProjectMembersService(actor, project.id, { includeHistory: true }),
     canLoadCandidateLists
@@ -126,6 +132,9 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
     canReadDocuments
       ? listProjectDocumentsService(actor, project.id, { pageSize: 3 })
       : Promise.resolve(null),
+    canReadDocuments
+      ? listPinnedProjectDocumentsService(actor, project.id)
+      : Promise.resolve([]),
   ]);
 
   return (
@@ -161,6 +170,10 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
           }}
         />
       </div>
+
+      {canReadDocuments && (
+        <PinnedToolkitBar projectId={project.id} pinnedDocuments={pinnedDocuments} />
+      )}
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>

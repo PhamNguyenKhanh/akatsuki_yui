@@ -3,26 +3,34 @@ import { z } from "zod";
 import {
   ALLOWED_GOOGLE_DRIVE_HOSTS,
   type GoogleDriveUrlValidationResult,
+  validateDocumentUrl,
   validateGoogleDriveUrl,
 } from "@/lib/safe-url";
 import { uuidSchema } from "@/lib/validations/common";
 
-export { ALLOWED_GOOGLE_DRIVE_HOSTS, validateGoogleDriveUrl, type GoogleDriveUrlValidationResult };
+export {
+  ALLOWED_GOOGLE_DRIVE_HOSTS,
+  validateDocumentUrl,
+  validateGoogleDriveUrl,
+  type GoogleDriveUrlValidationResult,
+};
 
-export const googleDriveUrlSchema = z
+export const documentUrlSchema = z
   .string()
   .trim()
   .min(1, "URL tài liệu không được để trống.")
   .max(1000, "URL tài liệu không được vượt quá 1000 ký tự.")
   .superRefine((val, ctx) => {
-    const check = validateGoogleDriveUrl(val);
+    const check = validateDocumentUrl(val);
     if (!check.valid) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: check.reason ?? "Liên kết Google Drive không hợp lệ.",
+        message: check.reason ?? "Liên kết tài liệu không hợp lệ.",
       });
     }
   });
+
+export const googleDriveUrlSchema = documentUrlSchema;
 
 export const documentCategorySchema = z.nativeEnum(DocumentCategory, {
   error: "Danh mục tài liệu không hợp lệ.",
@@ -44,6 +52,7 @@ export const createDocumentSchema = z.object({
     .optional()
     .transform((v) => (v && v.length > 0 ? v : null)),
   sprintId: uuidSchema.nullable().optional().default(null),
+  isPinned: z.boolean().optional().default(false),
 });
 
 export const updateDocumentSchema = z
@@ -54,7 +63,7 @@ export const updateDocumentSchema = z
       .min(1, "Tiêu đề tài liệu không được để trống.")
       .max(200, "Tiêu đề tài liệu không được vượt quá 200 ký tự.")
       .optional(),
-    url: googleDriveUrlSchema.optional(),
+    url: documentUrlSchema.optional(),
     category: documentCategorySchema.optional(),
     description: z
       .string()
@@ -64,6 +73,7 @@ export const updateDocumentSchema = z
       .optional()
       .transform((v) => (v === undefined ? undefined : v && v.length > 0 ? v : null)),
     sprintId: uuidSchema.nullable().optional(),
+    isPinned: z.boolean().optional(),
   })
   .refine(
     (data) =>
@@ -71,7 +81,8 @@ export const updateDocumentSchema = z
       data.url !== undefined ||
       data.category !== undefined ||
       data.description !== undefined ||
-      data.sprintId !== undefined,
+      data.sprintId !== undefined ||
+      data.isPinned !== undefined,
     {
       message: "Cần cung cấp ít nhất một trường thông tin để cập nhật tài liệu.",
     }

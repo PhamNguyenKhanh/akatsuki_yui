@@ -5,8 +5,10 @@ import { PERMISSIONS, ROLES } from "@/modules/authorization/constants";
 import { canActorManageProjectDocuments } from "@/modules/documents/document.access";
 import {
   createDocumentSchema,
+  validateDocumentUrl,
   validateGoogleDriveUrl,
 } from "@/modules/documents/document.validation";
+import { detectDocumentBrand } from "@/lib/document-brand";
 import type { AuthContext } from "@/types/auth";
 
 const { prismaMock } = vi.hoisted(() => {
@@ -141,6 +143,48 @@ describe("Sprint 5 — Document Library Unit Tests", () => {
       for (const url of invalidUrls) {
         const res = validateGoogleDriveUrl(url);
         expect(res.valid).toBe(false);
+      }
+    });
+  });
+
+  describe("Dev Bookmarks & Toolkit URL Validation + Brand Detection", () => {
+    it("accepts public HTTPS developer links (Figma, GitHub, Postman, Notion, Vercel, Swagger)", () => {
+      const devUrls = [
+        { url: "https://www.figma.com/file/abc123/Akatsuki-UI", expectedKey: "figma" },
+        { url: "https://github.com/PhamNguyenKhanh/akatsuki_yui", expectedKey: "github" },
+        { url: "https://www.postman.com/collections/123", expectedKey: "postman" },
+        { url: "https://www.notion.so/team/API-Spec-123", expectedKey: "notion" },
+        { url: "https://akatsuki-yui.vercel.app/login", expectedKey: "vercel" },
+        { url: "https://api.example.com/swagger/index.html", expectedKey: "swagger" },
+        { url: "https://docs.google.com/document/d/abc/edit", expectedKey: "google-docs" },
+      ] as const;
+
+      for (const { url, expectedKey } of devUrls) {
+        expect(validateDocumentUrl(url).valid).toBe(true);
+        expect(detectDocumentBrand(url).key).toBe(expectedKey);
+        const parsed = createDocumentSchema.safeParse({
+          title: "Dev Resource",
+          url,
+          category: DocumentCategory.DESIGN,
+          isPinned: true,
+        });
+        expect(parsed.success).toBe(true);
+      }
+    });
+
+    it("rejects http://, javascript:, localhost, private IPs, and credentials", () => {
+      const unsafeUrls = [
+        "http://figma.com/file/abc",
+        "https://localhost:3000/api",
+        "https://127.0.0.1/admin",
+        "https://192.168.1.10/swagger",
+        "https://10.0.0.5/docs",
+        "https://user:pass@github.com/org/repo",
+        "javascript:alert(1)",
+      ];
+
+      for (const url of unsafeUrls) {
+        expect(validateDocumentUrl(url).valid).toBe(false);
       }
     });
   });

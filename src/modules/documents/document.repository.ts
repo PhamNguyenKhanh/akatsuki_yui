@@ -1,7 +1,7 @@
 import "server-only";
 import { type Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { sanitizeGoogleDriveReadUrl } from "@/lib/safe-url";
+import { sanitizeDocumentReadUrl } from "@/lib/safe-url";
 import type { DocumentDTO, DocumentListResponseDTO } from "@/modules/documents/document.types";
 import type { ParsedDocumentListQuery } from "@/modules/documents/document.validation";
 
@@ -14,6 +14,7 @@ export const documentSelect = {
   url: true,
   category: true,
   description: true,
+  isPinned: true,
   createdAt: true,
   updatedAt: true,
   deletedAt: true,
@@ -53,9 +54,10 @@ export function mapDocumentToDTO(record: DocumentRecord): DocumentDTO {
     sprintId: record.sprintId,
     uploadedById: record.uploadedById,
     title: record.title,
-    url: sanitizeGoogleDriveReadUrl(record.url),
+    url: sanitizeDocumentReadUrl(record.url),
     category: record.category,
     description: record.description,
+    isPinned: record.isPinned,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
     deletedAt: record.deletedAt ? record.deletedAt.toISOString() : null,
@@ -159,7 +161,7 @@ export const documentRepository = {
       tx.document.findMany({
         where,
         select: documentSelect,
-        orderBy: [{ createdAt: "desc" }],
+        orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
         skip,
         take: query.pageSize,
       }),
@@ -173,5 +175,23 @@ export const documentRepository = {
       pageSize: query.pageSize,
       totalPages: Math.max(1, Math.ceil(totalItems / query.pageSize)),
     };
+  },
+
+  async listPinnedByProject(
+    projectId: string,
+    limit = 10,
+    tx: Prisma.TransactionClient = prisma
+  ): Promise<DocumentDTO[]> {
+    const records = await tx.document.findMany({
+      where: {
+        projectId,
+        deletedAt: null,
+        isPinned: true,
+      },
+      select: documentSelect,
+      orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+      take: limit,
+    });
+    return records.map(mapDocumentToDTO);
   },
 };

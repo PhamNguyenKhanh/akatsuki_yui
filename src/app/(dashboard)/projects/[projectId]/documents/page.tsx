@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { DocumentLibraryClient } from "@/components/features/documents/document-library-client";
+import { PinnedToolkitBar } from "@/components/features/documents/pinned-toolkit-bar";
 import { ProjectStatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { isAppError } from "@/lib/errors";
@@ -16,7 +17,10 @@ import { uuidSchema } from "@/lib/validations/common";
 import { PERMISSIONS } from "@/modules/authorization/constants";
 import { requirePermissionOrRedirect } from "@/modules/authorization/require-auth";
 import { canActorManageProjectDocuments } from "@/modules/documents/document.access";
-import { listProjectDocumentsService } from "@/modules/documents/document.service";
+import {
+  listPinnedProjectDocumentsService,
+  listProjectDocumentsService,
+} from "@/modules/documents/document.service";
 import { documentCategorySchema } from "@/modules/documents/document.validation";
 import { assertProjectReadAccess } from "@/modules/projects/project.access";
 import { prisma } from "@/lib/prisma";
@@ -62,7 +66,7 @@ export default async function ProjectDocumentsPage({
     throw error;
   }
 
-  const [documentList, projectSprints] = await Promise.all([
+  const [documentList, pinnedDocuments, projectSprints] = await Promise.all([
     listProjectDocumentsService(actor, projectAccess.id, {
       page,
       pageSize: 10,
@@ -70,6 +74,7 @@ export default async function ProjectDocumentsPage({
       ...(category ? { category } : {}),
       ...(sprintId ? { sprintId } : {}),
     }),
+    listPinnedProjectDocumentsService(actor, projectAccess.id),
     prisma.sprint.findMany({
       where: { projectId: projectAccess.id },
       select: {
@@ -102,11 +107,17 @@ export default async function ProjectDocumentsPage({
             <ProjectStatusBadge status={projectAccess.status} />
           </div>
           <p className="text-sm text-muted-foreground">
-            Quản lý tài liệu đặc tả, thiết kế và báo cáo liên kết từ Google Drive / Google Docs của
-            Project.
+            Kho đồ nghề &amp; tài liệu chung của Project (Google Drive/Docs, Figma, GitHub,
+            Postman, Notion, Vercel, Swagger...).
           </p>
         </div>
       </div>
+
+      <PinnedToolkitBar
+        projectId={projectAccess.id}
+        pinnedDocuments={pinnedDocuments}
+        showManageLink={false}
+      />
 
       <DocumentLibraryClient
         mode="project"

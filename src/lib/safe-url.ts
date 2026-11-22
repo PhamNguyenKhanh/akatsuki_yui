@@ -142,6 +142,104 @@ export function sanitizeGoogleDriveReadUrl(rawUrl: string | null | undefined): s
   return check.valid ? (check.normalizedUrl ?? null) : null;
 }
 
+function isPrivateOrLocalHostname(hostname: string): boolean {
+  const lower = hostname.toLowerCase();
+  if (
+    lower === "localhost" ||
+    lower.endsWith(".localhost") ||
+    lower.endsWith(".local") ||
+    lower === "::1" ||
+    lower === "[::1]"
+  ) {
+    return true;
+  }
+
+  const ipv4Match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(lower);
+  if (!ipv4Match) return false;
+
+  const a = Number(ipv4Match[1]);
+  const b = Number(ipv4Match[2]);
+  if (a === 127 || a === 10 || a === 0) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  return false;
+}
+
+/**
+ * Validates that a document/bookmark URL is a safe public HTTPS link.
+ * Allows Google Drive/Docs and developer tools (Figma, GitHub, Postman, Notion, Vercel, Swagger, etc.)
+ * while rejecting http:, javascript:, data:, credentials, custom ports, localhost, and private IPs.
+ */
+export function validateDocumentUrl(rawUrl: string): GoogleDriveUrlValidationResult {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) {
+    return { valid: false, reason: "URL tài liệu không được để trống." };
+  }
+  if (trimmed.length > 1000) {
+    return { valid: false, reason: "URL tài liệu không được vượt quá 1000 ký tự." };
+  }
+  if (
+    CONTROL_CHARS_OR_BACKSLASH.test(trimmed) ||
+    /\s/.test(trimmed) ||
+    !HTTPS_PREFIX.test(trimmed)
+  ) {
+    return {
+      valid: false,
+      reason: "URL tài liệu phải bắt đầu bằng https:// và đúng định dạng hợp lệ.",
+    };
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return { valid: false, reason: "URL tài liệu không đúng định dạng hợp lệ." };
+  }
+
+  if (parsed.protocol !== "https:") {
+    return {
+      valid: false,
+      reason: "Chỉ chấp nhận liên kết sử dụng giao thức HTTPS an toàn.",
+    };
+  }
+
+  if (parsed.username || parsed.password) {
+    return {
+      valid: false,
+      reason: "URL tài liệu không được chứa thông tin xác thực (username/password).",
+    };
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+  if (!hostname.includes(".") || isPrivateOrLocalHostname(hostname)) {
+    return {
+      valid: false,
+      reason: "Không chấp nhận địa chỉ localhost hoặc IP nội bộ.",
+    };
+  }
+
+  if (parsed.port && parsed.port !== "443") {
+    return {
+      valid: false,
+      reason: "URL tài liệu không được sử dụng cổng mạng tùy chỉnh.",
+    };
+  }
+
+  return {
+    valid: true,
+    normalizedUrl: trimmed,
+  };
+}
+
+export function sanitizeDocumentReadUrl(rawUrl: string | null | undefined): string | null {
+  if (typeof rawUrl !== "string") {
+    return null;
+  }
+  const check = validateDocumentUrl(rawUrl);
+  return check.valid ? (check.normalizedUrl ?? null) : null;
+}
+
 /**
  * Validates that a URL is a legitimate HTTPS Google Meet link (https://meet.google.com/<code>).
  * Rejects http:, control chars, embedded credentials, lookalike domains, subdomains, and bare root URLs.
