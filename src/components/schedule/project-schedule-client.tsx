@@ -14,8 +14,11 @@ import {
   Trash2,
   User,
   Users,
+  Video,
 } from "lucide-react";
 import { toast } from "sonner";
+import { QuickCreateMeetingDialog } from "@/components/meetings/quick-create-meeting-dialog";
+import { FreeSlotFinderDialog } from "@/components/schedule/free-slot-finder-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,6 +61,7 @@ import {
   type ScheduleOccurrenceDTO,
   type ScheduleRecurrenceScope,
 } from "@/modules/schedule/schedule.types";
+import type { MeetLinkDTO } from "@/modules/meetings/meeting.types";
 
 const ALL_MEMBERS_VALUE = "__ALL__";
 
@@ -122,11 +126,15 @@ export function ProjectScheduleClient({
   projectStatus,
   currentUserId,
   schedule,
+  canManageMeetings = false,
+  meetLinks = [],
 }: {
   projectId: string;
   projectStatus: ProjectStatus;
   currentUserId: string;
   schedule: ProjectWeeklyScheduleDTO;
+  canManageMeetings?: boolean;
+  meetLinks?: MeetLinkDTO[];
 }) {
   const router = useRouter();
   const [viewMode, setViewMode] = React.useState<ViewMode>("TEAM");
@@ -137,6 +145,11 @@ export function ProjectScheduleClient({
   );
   const [showNightHours, setShowNightHours] = React.useState<boolean>(false);
   const [modal, setModal] = React.useState<ModalState | null>(null);
+  const [quickMeetingSlot, setQuickMeetingSlot] = React.useState<{
+    date: string;
+    startTime: string;
+    endTime: string;
+  } | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
 
   const referenceNowMs = React.useMemo(() => Date.parse(schedule.nowIso), [schedule.nowIso]);
@@ -468,6 +481,12 @@ export function ProjectScheduleClient({
                 </Select>
               )}
 
+              <FreeSlotFinderDialog
+                projectId={projectId}
+                initialWeekStart={schedule.weekStart}
+                triggerClassName="h-8 text-xs"
+              />
+
               <Button
                 type="button"
                 variant="outline"
@@ -543,6 +562,14 @@ export function ProjectScheduleClient({
                       const isPastBlock = blockEndInstant.getTime() <= referenceNowMs;
                       const isAfterProjectEnd = day.date > schedule.projectEndDate;
                       const canQuickAddCell = canCreate && !isPastBlock && !isAfterProjectEnd;
+                      const canQuickCreateMeeting =
+                        canManageMeetings && !isArchived && !isPastBlock && !isAfterProjectEnd;
+                      const openQuickMeetingForCell = () =>
+                        setQuickMeetingSlot({
+                          date: day.date,
+                          startTime: minutesToHhmm(block.startMinute),
+                          endTime: minutesToHhmm(block.endMinute),
+                        });
 
                       const cellOccurrences = filteredOccurrences.filter(
                         (occ) =>
@@ -560,10 +587,21 @@ export function ProjectScheduleClient({
                       return (
                         <td
                           key={`${day.date}-${block.startMinute}`}
+                          onClick={(event) => {
+                            if (!canQuickCreateMeeting) return;
+                            if ((event.target as HTMLElement).closest("button")) return;
+                            openQuickMeetingForCell();
+                          }}
+                          title={
+                            canQuickCreateMeeting
+                              ? `Click vào ô để tạo nhanh cuộc họp (${day.fullLabel} ${block.label})`
+                              : undefined
+                          }
                           className={cn(
                             "group relative min-w-0 border-r border-border p-1.5 align-top transition-colors last:border-r-0",
                             isToday && "bg-primary/[0.03]",
-                            canQuickAddCell && "hover:bg-accent/35"
+                            (canQuickAddCell || canQuickCreateMeeting) && "hover:bg-accent/35",
+                            canQuickCreateMeeting && "cursor-pointer"
                           )}
                         >
                           <div className="mb-1 flex items-center justify-between gap-1">
@@ -581,19 +619,32 @@ export function ProjectScheduleClient({
                               <span />
                             )}
 
-                            {canQuickAddCell && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  openCreateModal(day.date, block.startMinute, block.endMinute)
-                                }
-                                title={`Thêm lịch bận ${day.fullLabel} (${block.label})`}
-                                aria-label={`Thêm lịch bận ${day.fullLabel} ${block.label}`}
-                                className="inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border border-transparent text-muted-foreground opacity-60 transition hover:border-border hover:bg-card hover:text-foreground group-hover:opacity-100"
-                              >
-                                <Plus className="h-3.5 w-3.5" />
-                              </button>
-                            )}
+                            <div className="flex shrink-0 items-center gap-0.5">
+                              {canQuickCreateMeeting && (
+                                <button
+                                  type="button"
+                                  onClick={openQuickMeetingForCell}
+                                  title={`Tạo nhanh cuộc họp ${day.fullLabel} (${block.label})`}
+                                  aria-label={`Tạo nhanh cuộc họp ${day.fullLabel} ${block.label}`}
+                                  className="inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border border-transparent text-primary/70 opacity-60 transition hover:border-border hover:bg-card hover:text-primary group-hover:opacity-100"
+                                >
+                                  <Video className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                              {canQuickAddCell && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    openCreateModal(day.date, block.startMinute, block.endMinute)
+                                  }
+                                  title={`Thêm lịch bận ${day.fullLabel} (${block.label})`}
+                                  aria-label={`Thêm lịch bận ${day.fullLabel} ${block.label}`}
+                                  className="inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border border-transparent text-muted-foreground opacity-60 transition hover:border-border hover:bg-card hover:text-foreground group-hover:opacity-100"
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </div>
 
                           <div className="min-w-0 space-y-1">
@@ -924,6 +975,21 @@ export function ProjectScheduleClient({
           )}
         </DialogContent>
       </Dialog>
+
+      {quickMeetingSlot && (
+        <QuickCreateMeetingDialog
+          open={Boolean(quickMeetingSlot)}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setQuickMeetingSlot(null);
+          }}
+          projectId={projectId}
+          meetLinks={meetLinks}
+          members={schedule.members}
+          initialDate={quickMeetingSlot.date}
+          initialStartTime={quickMeetingSlot.startTime}
+          initialEndTime={quickMeetingSlot.endTime}
+        />
+      )}
     </div>
   );
 }
