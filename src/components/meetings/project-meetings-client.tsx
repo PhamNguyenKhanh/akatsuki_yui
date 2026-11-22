@@ -46,6 +46,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatHcmDateVi } from "@/lib/timezone";
 import { formatMeetingZaloSummary } from "@/lib/zalo-summary";
 import { CopyZaloButton } from "@/components/shared/copy-zalo-button";
+import { FreeSlotFinderDialog } from "@/components/schedule/free-slot-finder-dialog";
 import {
   cancelProjectMeetingAction,
   createMeetLinkAction,
@@ -368,12 +369,15 @@ export function ProjectMeetingsClient({
                   Hệ thống tự động chặn tạo cuộc họp trong quá khứ hoặc trùng lịch bận Schedule.
                 </CardDescription>
               </div>
-              {canManage && (
-                <Button type="button" size="sm" onClick={openCreateMeetingModal}>
-                  <Plus className="h-4 w-4" />
-                  <span>Tạo cuộc họp mới</span>
-                </Button>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <FreeSlotFinderDialog projectId={projectId} />
+                {canManage && (
+                  <Button type="button" size="sm" onClick={openCreateMeetingModal}>
+                    <Plus className="h-4 w-4" />
+                    <span>Tạo cuộc họp mới</span>
+                  </Button>
+                )}
+              </div>
             </CardHeader>
 
             <CardContent className="space-y-4">

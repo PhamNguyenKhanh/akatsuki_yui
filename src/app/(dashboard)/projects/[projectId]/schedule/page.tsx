@@ -7,7 +7,10 @@ import { ProjectStatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { isAppError } from "@/lib/errors";
 import { PERMISSIONS } from "@/modules/authorization/constants";
+import { hasPermission } from "@/modules/authorization/policy.service";
 import { requirePermissionOrRedirect } from "@/modules/authorization/require-auth";
+import { getProjectMeetingsBundleService } from "@/modules/meetings/meeting.service";
+import type { MeetLinkDTO } from "@/modules/meetings/meeting.types";
 import type { ProjectDTO } from "@/modules/projects/project.repository";
 import { getProjectDetailService } from "@/modules/projects/project.service";
 import { getProjectWeeklyScheduleService } from "@/modules/schedule/schedule.service";
@@ -54,6 +57,19 @@ export default async function ProjectSchedulePage({
     }
   }
 
+  let canManageMeetings = false;
+  let meetLinks: MeetLinkDTO[] = [];
+  if (hasPermission(actor, PERMISSIONS.MEETING_READ)) {
+    try {
+      const meetingBundle = await getProjectMeetingsBundleService(actor, project.id);
+      canManageMeetings = meetingBundle.capabilities.canManage;
+      meetLinks = meetingBundle.meetLinks;
+    } catch {
+      canManageMeetings = false;
+      meetLinks = [];
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
@@ -83,6 +99,8 @@ export default async function ProjectSchedulePage({
         projectStatus={project.status}
         currentUserId={actor.userId}
         schedule={initialSchedule}
+        canManageMeetings={canManageMeetings}
+        meetLinks={meetLinks}
       />
     </div>
   );
