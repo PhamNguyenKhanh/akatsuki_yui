@@ -215,12 +215,16 @@ export function mapReferenceLinks(value: Prisma.JsonValue | null | undefined): s
     .filter((item): item is string => item !== null);
 }
 
+// Deadlines are stored as UTC midnight (YYYY-MM-DDT00:00:00.000Z) from <input type="date">.
+// In Asia/Ho_Chi_Minh (UTC+7), end of that calendar day (23:59:59.999 +07:00) is 16:59:59.999Z.
+const HCM_END_OF_DAY_OFFSET_MS = 17 * 60 * 60 * 1000 - 1;
+
 export function computeIsTaskOverdue(
   status: TaskStatus,
   deadline: Date,
   now: Date = new Date()
 ): boolean {
-  return status !== TaskStatus.DONE && deadline.getTime() < now.getTime();
+  return status !== TaskStatus.DONE && deadline.getTime() + HCM_END_OF_DAY_OFFSET_MS < now.getTime();
 }
 
 const taskAssigneeSelect = {
@@ -579,7 +583,7 @@ export function buildTaskProjectWhereInput(
   if (filter.overdueOnly) {
     andConditions.push({
       status: { not: TaskStatus.DONE },
-      deadline: { lt: now },
+      deadline: { lt: new Date(now.getTime() - HCM_END_OF_DAY_OFFSET_MS) },
     });
   }
 
