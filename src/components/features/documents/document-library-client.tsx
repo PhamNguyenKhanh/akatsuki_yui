@@ -6,8 +6,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { DocumentCategory, ProjectStatus } from "@prisma/client";
 import { toast } from "sonner";
 import { UrlPaginationControls } from "@/components/shared/url-pagination-controls";
-import { sanitizeGoogleDriveReadUrl } from "@/lib/safe-url";
+import { detectDocumentBrand } from "@/lib/document-brand";
+import { sanitizeDocumentReadUrl } from "@/lib/safe-url";
 import { buildUpdatedQueryUrl } from "@/lib/search-params";
+import { cn } from "@/lib/utils";
 import { usePropSyncedState } from "@/lib/use-prop-synced-state";
 import {
   Archive,
@@ -16,6 +18,8 @@ import {
   FolderKanban,
   Layers,
   Pencil,
+  Pin,
+  PinOff,
   Plus,
   Search,
   Trash2,
@@ -63,7 +67,7 @@ import type {
   DocumentDTO,
   DocumentSprintSummaryDTO,
 } from "@/modules/documents/document.types";
-import { validateGoogleDriveUrl } from "@/modules/documents/document.validation";
+import { validateDocumentUrl } from "@/modules/documents/document.validation";
 
 export const DOCUMENT_CATEGORY_LABELS: Record<DocumentCategory, string> = {
   SPECIFICATION: "Đặc tả (Specification)",
@@ -202,8 +206,10 @@ export function DocumentLibraryClient({
   );
   const [formSprintId, setFormSprintId] = React.useState<string>("NONE");
   const [formDescription, setFormDescription] = React.useState("");
+  const [formIsPinned, setFormIsPinned] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
+  const [pinningDocId, setPinningDocId] = React.useState<string | null>(null);
 
   // Delete AlertDialog state
   const [deletingDoc, setDeletingDoc] = React.useState<DocumentDTO | null>(null);
@@ -288,6 +294,7 @@ export function DocumentLibraryClient({
     setFormCategory(DocumentCategory.SPECIFICATION);
     setFormSprintId("NONE");
     setFormDescription("");
+    setFormIsPinned(false);
     setFormError(null);
     setDialogOpen(true);
   }
@@ -300,17 +307,38 @@ export function DocumentLibraryClient({
     setFormCategory(doc.category);
     setFormSprintId(doc.sprintId ?? "NONE");
     setFormDescription(doc.description ?? "");
+    setFormIsPinned(doc.isPinned);
     setFormError(null);
     setDialogOpen(true);
+  }
+
+  async function handleTogglePin(doc: DocumentDTO) {
+    setPinningDocId(doc.id);
+    try {
+      const res = await updateDocumentAction(doc.id, { isPinned: !doc.isPinned });
+      if (!res.ok) {
+        toast.error(res.error.message);
+        return;
+      }
+      setDocuments((prev) => prev.map((d) => (d.id === res.data.id ? res.data : d)));
+      toast.success(
+        res.data.isPinned
+          ? `Đã ghim "${res.data.title}" lên thanh Đồ nghề.`
+          : `Đã bỏ ghim "${res.data.title}".`
+      );
+      router.refresh();
+    } finally {
+      setPinningDocId(null);
+    }
   }
 
   async function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setFormError(null);
 
-    const urlValidation = validateGoogleDriveUrl(formUrl);
+    const urlValidation = validateDocumentUrl(formUrl);
     if (!urlValidation.valid) {
-      setFormError(urlValidation.reason ?? "Liên kết Google Drive không hợp lệ.");
+      setFormError(urlValidation.reason ?? "Liên kết tài liệu không hợp lệ.");
       return;
     }
 
@@ -329,6 +357,7 @@ export function DocumentLibraryClient({
           category: formCategory,
           description: formDescription || null,
           sprintId: formSprintId === "NONE" ? null : formSprintId,
+          isPinned: formIsPinned,
         });
         if (!res.ok) {
           setFormError(res.error.message);
@@ -344,6 +373,7 @@ export function DocumentLibraryClient({
           category: formCategory,
           description: formDescription || null,
           sprintId: formSprintId === "NONE" ? null : formSprintId,
+          isPinned: formIsPinned,
         });
         if (!res.ok) {
           setFormError(res.error.message);
@@ -533,10 +563,27 @@ export function DocumentLibraryClient({
                 <TableBody>
                   {filteredDocuments.map((doc) => {
                     const rowManageable = canManageDocumentRow(doc);
-                    const safeDocUrl = sanitizeGoogleDriveReadUrl(doc.url);
+                    const safeDocUrl = sanitizeDocumentReadUrl(doc.url);
+                    const brand = detectDocumentBrand(safeDocUrl);
                     return (
                       <TableRow key={doc.id}>
                         <TableCell className="max-w-xs space-y-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span
+                              className={cn(
+                                "inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium",
+                                brand.badgeClassName
+                              )}
+                            >
+                              {brand.label}
+                            </span>
+                            {doc.isPinned && (
+                              <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[10px]">
+                                <Pin className="h-2.5 w-2.5" />
+                                <span>Đã ghim</span>
+                              </Badge>
+                            )}
+                          </div>
                           {safeDocUrl ? (
                             <a
                               href={safeDocUrl}
@@ -613,7 +660,7 @@ export function DocumentLibraryClient({
                                   href={safeDocUrl}
                                   target="_blank"
                                   rel="noreferrer noopener"
-                                  title="Mở trên Google Drive / Docs"
+                                  title={`Mở trên ${brand.label}`}
                                 >
                                   <ExternalLink className="h-4 w-4" />
                                   <span className="sr-only">Mở liên kết</span>
@@ -623,6 +670,27 @@ export function DocumentLibraryClient({
 
                             {rowManageable && (
                               <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={pinningDocId === doc.id}
+                                  onClick={() => void handleTogglePin(doc)}
+                                  title={
+                                    doc.isPinned
+                                      ? "Bỏ ghim khỏi thanh Đồ nghề"
+                                      : "Ghim lên thanh Đồ nghề dự án"
+                                  }
+                                  className={doc.isPinned ? "text-primary" : undefined}
+                                >
+                                  {doc.isPinned ? (
+                                    <PinOff className="h-4 w-4" />
+                                  ) : (
+                                    <Pin className="h-4 w-4" />
+                                  )}
+                                  <span className="sr-only">
+                                    {doc.isPinned ? "Bỏ ghim" : "Ghim"}
+                                  </span>
+                                </Button>
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -676,11 +744,11 @@ export function DocumentLibraryClient({
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {editingDoc ? "Cập nhật thông tin tài liệu" : "Thêm tài liệu Google Drive"}
+              {editingDoc ? "Cập nhật tài liệu / đồ nghề" : "Thêm tài liệu / đồ nghề dự án"}
             </DialogTitle>
             <DialogDescription>
-              Chỉ chấp nhận liên kết chính thức từ <code>https://drive.google.com</code> hoặc{" "}
-              <code>https://docs.google.com</code>.
+              Hỗ trợ liên kết HTTPS an toàn: Google Drive/Docs, Figma, GitHub, Postman, Notion,
+              Canva, Vercel, Miro, Swagger hoặc Web Link khác.
             </DialogDescription>
           </DialogHeader>
 
@@ -729,13 +797,13 @@ export function DocumentLibraryClient({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="doc-url">Liên kết Google Drive / Google Docs *</Label>
+              <Label htmlFor="doc-url">Liên kết HTTPS (Drive, Figma, GitHub, Postman...) *</Label>
               <Input
                 id="doc-url"
                 type="url"
                 value={formUrl}
                 onChange={(e) => setFormUrl(e.target.value)}
-                placeholder="https://docs.google.com/document/d/..."
+                placeholder="https://www.figma.com/file/... hoặc https://docs.google.com/..."
                 required
               />
             </div>
@@ -781,11 +849,21 @@ export function DocumentLibraryClient({
                 id="doc-description"
                 value={formDescription}
                 onChange={(e) => setFormDescription(e.target.value)}
-                placeholder="Ghi chú phiên bản, nội dung chính hoặc phạm vi áp dụng..."
+                placeholder="Ghi chú phiên bản, nội dung chính hoặc tài khoản test..."
                 rows={3}
                 maxLength={2000}
               />
             </div>
+
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+              <input
+                type="checkbox"
+                checked={formIsPinned}
+                onChange={(e) => setFormIsPinned(e.target.checked)}
+                className="h-4 w-4 rounded border-input accent-primary"
+              />
+              <span>Ghim lên thanh &quot;Đồ nghề dự án&quot; ở đầu trang</span>
+            </label>
 
             <DialogFooter>
               <Button

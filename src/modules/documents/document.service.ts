@@ -61,6 +61,16 @@ export async function listProjectDocumentsService(
   });
 }
 
+export async function listPinnedProjectDocumentsService(
+  actor: AuthContext,
+  projectId: string
+): Promise<DocumentDTO[]> {
+  assertPermission(actor, PERMISSIONS.DOCUMENT_READ);
+  const validProjectId = parseProjectId(projectId);
+  await assertProjectReadAccess(actor, validProjectId);
+  return documentRepository.listPinnedByProject(validProjectId, 10);
+}
+
 export async function listGlobalDocumentsService(
   actor: AuthContext,
   rawQuery: Partial<DocumentListQueryInput> = {}
@@ -185,6 +195,7 @@ export async function createDocumentService(
         url: input.url,
         category: input.category,
         description: input.description ?? null,
+        isPinned: input.isPinned ?? false,
       },
       select: documentSelect,
     });
@@ -256,6 +267,7 @@ export async function updateDocumentService(
         ...(input.category !== undefined ? { category: input.category } : {}),
         ...(input.description !== undefined ? { description: input.description } : {}),
         ...(input.sprintId !== undefined ? { sprintId: input.sprintId } : {}),
+        ...(input.isPinned !== undefined ? { isPinned: input.isPinned } : {}),
       },
       select: documentSelect,
     });

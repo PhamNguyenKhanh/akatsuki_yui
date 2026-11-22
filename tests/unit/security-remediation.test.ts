@@ -460,6 +460,7 @@ describe("Security Remediation Unit Regression Suite (SEC-01 .. SEC-11)", () => 
         url: "http://drive.google.com.evil.com/doc/1",
         category: "OTHER",
         description: null,
+        isPinned: false,
         createdAt: new Date(),
         updatedAt: new Date(),
         deletedAt: null,

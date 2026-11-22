@@ -29,6 +29,7 @@ export interface DocumentDTO {
   url: string | null;
   category: DocumentCategory;
   description: string | null;
+  isPinned: boolean;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
