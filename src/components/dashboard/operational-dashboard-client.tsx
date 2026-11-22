@@ -30,12 +30,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MyDayFocusCard } from "@/components/dashboard/my-day-focus-card";
 import { CopyZaloButton } from "@/components/shared/copy-zalo-button";
 import { ProjectStatusBadge, RoleBadge, SprintStatusBadge } from "@/components/shared/status-badge";
 import { MyAssignedTasksCard } from "@/components/tasks/my-assigned-tasks-card";
 import { formatHcmDateTimeVi, formatHcmDateVi } from "@/lib/timezone";
 import { formatDashboardZaloSummary } from "@/lib/zalo-summary";
 import type { OperationalDashboardDTO } from "@/modules/dashboard/dashboard.service";
+import type { MyDayFocusDTO } from "@/modules/dashboard/my-day-focus.service";
 
 interface OperationalDashboardClientProps {
   actorName: string;
@@ -43,6 +45,7 @@ interface OperationalDashboardClientProps {
   actorRoles: string[];
   permissionCount: number;
   dashboard: OperationalDashboardDTO;
+  myFocus?: MyDayFocusDTO;
 }
 
 function getTimelineStateDescription(
@@ -67,6 +70,7 @@ export function OperationalDashboardClient({
   actorRoles,
   permissionCount,
   dashboard,
+  myFocus,
 }: OperationalDashboardClientProps) {
   const router = useRouter();
   const {
@@ -152,6 +156,8 @@ export function OperationalDashboardClient({
           )}
         </div>
       </div>
+
+      {myFocus && <MyDayFocusCard focus={myFocus} />}
 
       {/* Selected Project Read-Only Banner when ARCHIVED (DEC-053) */}
       {selectedProject?.isReadOnly && (

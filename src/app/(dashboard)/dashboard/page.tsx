@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { OperationalDashboardClient } from "@/components/dashboard/operational-dashboard-client";
 import { requireActiveUserOrRedirect } from "@/modules/authorization/require-auth";
 import { getOperationalDashboardService } from "@/modules/dashboard/dashboard.service";
+import { getMyDayFocusService } from "@/modules/dashboard/my-day-focus.service";
 
 export const metadata: Metadata = {
   title: "Dashboard | Akatsuki Yui",
@@ -20,16 +21,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       ? resolvedSearchParams.projectId.trim()
       : undefined;
 
-  let dashboard;
-  try {
-    dashboard = await getOperationalDashboardService(
+  const [dashboard, myFocus] = await Promise.all([
+    getOperationalDashboardService(
       actor,
       requestedProjectId ? { projectId: requestedProjectId } : {}
-    );
-  } catch {
-    // Fall back safely to Active-first default if an explicit query param is invalid or stale.
-    dashboard = await getOperationalDashboardService(actor, {});
-  }
+    ).catch(() => getOperationalDashboardService(actor, {})),
+    getMyDayFocusService(actor),
+  ]);
 
   return (
     <OperationalDashboardClient
@@ -38,6 +36,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       actorRoles={actor.roles}
       permissionCount={actor.permissions.length}
       dashboard={dashboard}
+      myFocus={myFocus}
     />
   );
 }
