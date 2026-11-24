@@ -53,7 +53,10 @@ export async function validateEligibleTaskAssignees(
   const ineligibleIds = userIds.filter((userId) => {
     const member = membershipByUserId.get(userId);
     if (member) {
-      return member.projectRole === ProjectMemberRole.INSTRUCTOR;
+      return (
+        member.projectRole === ProjectMemberRole.INSTRUCTOR ||
+        member.projectRole === ProjectMemberRole.REVIEWER
+      );
     }
     return userId !== leaderId;
   });

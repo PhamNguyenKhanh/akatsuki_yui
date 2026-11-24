@@ -129,8 +129,9 @@ function formatPercent(numerator: number, denominator: number): number {
 const ROLE_SORT_PRIORITY: Record<ProjectMemberRole | "FORMER_MEMBER", number> = {
   LEADER: 0,
   INSTRUCTOR: 1,
-  MEMBER: 2,
-  FORMER_MEMBER: 3,
+  REVIEWER: 2,
+  MEMBER: 3,
+  FORMER_MEMBER: 4,
 };
 
 /**

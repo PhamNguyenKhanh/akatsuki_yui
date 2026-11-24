@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ProjectMemberRole } from "@prisma/client";
 import { ArrowLeft } from "lucide-react";
 import { KanbanBoardClient } from "@/components/kanban/kanban-board-client";
 import { ProjectStatusBadge } from "@/components/shared/status-badge";
@@ -11,6 +10,7 @@ import { isAppError } from "@/lib/errors";
 import { PERMISSIONS } from "@/modules/authorization/constants";
 import { hasPermission } from "@/modules/authorization/policy.service";
 import { requirePermissionOrRedirect } from "@/modules/authorization/require-auth";
+import { isAssignableProjectRole } from "@/modules/project-members/member.schema";
 import { listProjectMembersService } from "@/modules/project-members/member.service";
 import type { ProjectDTO } from "@/modules/projects/project.repository";
 import { getProjectDetailService } from "@/modules/projects/project.service";
@@ -80,7 +80,7 @@ export default async function ProjectKanbanPage({ params, searchParams }: Projec
   ]);
 
   const assignableMembers: TaskAssignableMemberOption[] = members
-    .filter((member) => member.projectRole !== ProjectMemberRole.INSTRUCTOR)
+    .filter((member) => isAssignableProjectRole(member.projectRole))
     .map((member) => ({
       userId: member.userId,
       fullName: member.user.fullName,

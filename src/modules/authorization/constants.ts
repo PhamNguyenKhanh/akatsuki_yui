@@ -3,6 +3,7 @@ export const ROLES = {
   INSTRUCTOR: "INSTRUCTOR",
   LEADER: "LEADER",
   MEMBER: "MEMBER",
+  REVIEWER: "REVIEWER",
 } as const;
 
 export type RoleName = (typeof ROLES)[keyof typeof ROLES];
@@ -306,6 +307,23 @@ export const ROLE_DEFINITIONS: Record<
       PERMISSIONS.SPRINT_READ,
       PERMISSIONS.SCHEDULE_READ,
       PERMISSIONS.SCHEDULE_MANAGE,
+      PERMISSIONS.MEETING_READ,
+      PERMISSIONS.DOCUMENT_READ,
+      PERMISSIONS.NOTIFICATION_READ,
+      PERMISSIONS.REPORT_READ,
+      PERMISSIONS.ACTIVITY_READ,
+    ],
+  },
+  REVIEWER: {
+    description:
+      "Người kiểm duyệt Task: xem Project, Sprint, Task, Tài liệu, bình luận và Approve/Reject Task đang chờ Review",
+    permissions: [
+      PERMISSIONS.PROJECT_READ,
+      PERMISSIONS.TASK_READ,
+      PERMISSIONS.TASK_REVIEW,
+      PERMISSIONS.TASK_HISTORY_READ,
+      PERMISSIONS.SPRINT_READ,
+      PERMISSIONS.SCHEDULE_READ,
       PERMISSIONS.MEETING_READ,
       PERMISSIONS.DOCUMENT_READ,
       PERMISSIONS.NOTIFICATION_READ,
