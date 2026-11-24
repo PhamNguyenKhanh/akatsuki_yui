@@ -78,7 +78,9 @@ export function ProjectMembersPanel({
 }) {
   const router = useRouter();
   const [selectedUserId, setSelectedUserId] = React.useState<string>("");
-  const [selectedRole, setSelectedRole] = React.useState<"MEMBER" | "INSTRUCTOR">("MEMBER");
+  const [selectedRole, setSelectedRole] = React.useState<"MEMBER" | "INSTRUCTOR" | "REVIEWER">(
+    "MEMBER"
+  );
   const [nextLeaderId, setNextLeaderId] = React.useState<string>("");
   const [showHistory, setShowHistory] = React.useState(false);
   const [busyKey, setBusyKey] = React.useState<string | null>(null);
@@ -304,13 +306,14 @@ export function ProjectMembersPanel({
                   </Label>
                   <Select
                     value={selectedRole}
-                    onValueChange={(v) => setSelectedRole(v as "MEMBER" | "INSTRUCTOR")}
+                    onValueChange={(v) => setSelectedRole(v as "MEMBER" | "INSTRUCTOR" | "REVIEWER")}
                   >
                     <SelectTrigger id="add-member-role">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="MEMBER">MEMBER</SelectItem>
+                      <SelectItem value="REVIEWER">REVIEWER</SelectItem>
                       <SelectItem value="INSTRUCTOR">INSTRUCTOR</SelectItem>
                     </SelectContent>
                   </Select>

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ProjectMemberRole, ProjectStatus } from "@prisma/client";
+import { ProjectStatus } from "@prisma/client";
 import { ArrowLeft } from "lucide-react";
 import { TaskForm } from "@/components/tasks/task-form";
 import type { TaskAssignableMemberOption } from "@/components/tasks/task-list-client";
@@ -11,6 +11,7 @@ import { isAppError } from "@/lib/errors";
 import { PERMISSIONS } from "@/modules/authorization/constants";
 import { hasPermission } from "@/modules/authorization/policy.service";
 import { requirePermissionOrRedirect } from "@/modules/authorization/require-auth";
+import { isAssignableProjectRole } from "@/modules/project-members/member.schema";
 import { listProjectMembersService } from "@/modules/project-members/member.service";
 import { isWorkspaceAdmin } from "@/modules/projects/project.access";
 import type { ProjectDTO } from "@/modules/projects/project.repository";
@@ -58,7 +59,7 @@ export default async function NewTaskPage({ params, searchParams }: NewTaskPageP
     : [[], new Map()];
 
   const assignableMembers: TaskAssignableMemberOption[] = members
-    .filter((member) => member.projectRole !== ProjectMemberRole.INSTRUCTOR)
+    .filter((member) => isAssignableProjectRole(member.projectRole))
     .map((member) => {
       const w = workloads.get(member.userId);
       return {

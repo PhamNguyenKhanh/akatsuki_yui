@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ProjectMemberRole } from "@prisma/client";
 import { ArrowLeft } from "lucide-react";
 import { ProjectStatusBadge } from "@/components/shared/status-badge";
 import {
@@ -13,6 +12,7 @@ import { isAppError } from "@/lib/errors";
 import { PERMISSIONS } from "@/modules/authorization/constants";
 import { hasPermission } from "@/modules/authorization/policy.service";
 import { requirePermissionOrRedirect } from "@/modules/authorization/require-auth";
+import { isAssignableProjectRole } from "@/modules/project-members/member.schema";
 import { listProjectMembersService } from "@/modules/project-members/member.service";
 import { isWorkspaceAdmin } from "@/modules/projects/project.access";
 import type { ProjectDTO } from "@/modules/projects/project.repository";
@@ -65,7 +65,7 @@ export default async function ProjectTasksPage({ params, searchParams }: Project
   ]);
 
   const assignableMembers: TaskAssignableMemberOption[] = members
-    .filter((member) => member.projectRole !== ProjectMemberRole.INSTRUCTOR)
+    .filter((member) => isAssignableProjectRole(member.projectRole))
     .map((member) => ({
       userId: member.userId,
       fullName: member.user.fullName,

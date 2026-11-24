@@ -15,9 +15,9 @@ import {
 } from "@/modules/tasks/task.repository";
 import {
   assertProjectNotArchivedForTaskMutation,
-  assertTaskLeaderAccess,
   assertTaskNotDoneForMutation,
   assertTaskProgressOrReviewActorAccess,
+  assertTaskReviewAccess,
   parseTaskId,
 } from "@/modules/tasks/task.access";
 import {
@@ -225,7 +225,7 @@ async function processTaskReviewDecision(
     : TaskHistoryAction.REVIEW_REJECTED;
 
   const result = await prisma.$transaction(async (tx) => {
-    const { task, project } = await assertTaskLeaderAccess(actor, validTaskId, tx, {
+    const { task, project } = await assertTaskReviewAccess(actor, validTaskId, tx, {
       lockForMutation: true,
     });
     assertProjectNotArchivedForTaskMutation(project.status);

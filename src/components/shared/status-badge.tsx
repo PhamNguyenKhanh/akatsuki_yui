@@ -24,6 +24,7 @@ const ROLE_LABEL_MAP: Record<RoleName, string> = {
   [ROLES.INSTRUCTOR]: "Instructor",
   [ROLES.LEADER]: "Leader",
   [ROLES.MEMBER]: "Member",
+  [ROLES.REVIEWER]: "Reviewer",
 };
 
 export function AccountStatusBadge({ status }: { status: UserStatus }) {
@@ -62,6 +63,7 @@ const PROJECT_MEMBER_ROLE_BADGE_MAP: Record<
 > = {
   [ProjectMemberRole.LEADER]: { label: "Leader", variant: "default" },
   [ProjectMemberRole.INSTRUCTOR]: { label: "Instructor", variant: "secondary" },
+  [ProjectMemberRole.REVIEWER]: { label: "Reviewer", variant: "secondary" },
   [ProjectMemberRole.MEMBER]: { label: "Member", variant: "outline" },
 };
 

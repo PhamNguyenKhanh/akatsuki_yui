@@ -145,6 +145,7 @@ enum ProjectMemberRole {
   LEADER
   MEMBER
   INSTRUCTOR
+  REVIEWER
 }
 
 model ProjectTemplate {

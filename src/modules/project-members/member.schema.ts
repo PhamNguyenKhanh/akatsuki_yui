@@ -12,9 +12,18 @@ export const projectMembersQuerySchema = z.object({
 export const addProjectMemberSchema = z.object({
   userId: uuidSchema,
   projectRole: z
-    .enum([ProjectMemberRole.MEMBER, ProjectMemberRole.INSTRUCTOR, ProjectMemberRole.LEADER])
+    .enum([
+      ProjectMemberRole.MEMBER,
+      ProjectMemberRole.INSTRUCTOR,
+      ProjectMemberRole.REVIEWER,
+      ProjectMemberRole.LEADER,
+    ])
     .default(ProjectMemberRole.MEMBER),
 });
+
+export function isAssignableProjectRole(role: ProjectMemberRole): boolean {
+  return role === ProjectMemberRole.LEADER || role === ProjectMemberRole.MEMBER;
+}
 
 export const changeProjectLeaderSchema = z.object({
   leaderId: uuidSchema,
