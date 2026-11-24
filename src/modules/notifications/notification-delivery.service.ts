@@ -1,6 +1,13 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { NotificationChannel, NotificationDeliveryStatus, type Prisma } from "@prisma/client";
+import {
+  NotificationChannel,
+  NotificationDeliveryStatus,
+  NotificationType,
+  type Prisma,
+} from "@prisma/client";
+import { getUserNotificationsChannel, PUSHER_EVENTS } from "@/lib/pusher-channels";
+import { triggerPusherEvent } from "@/lib/pusher-server";
 import { getSmtpConfigFromEnv } from "@/lib/env";
 import { conflictError, notFoundError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
@@ -527,9 +534,40 @@ export async function dispatchDeliveryById(
  * - Limits parallel SMTP connections to `MAX_SMTP_CONCURRENCY` (2)
  * - Swallows transport exceptions so email downtime never rolls back or breaks business flows
  */
+const REALTIME_NOTIFICATION_TYPES = new Set<NotificationType>([
+  NotificationType.TASK_ASSIGNED,
+  NotificationType.TASK_SUBMITTED_FOR_REVIEW,
+  NotificationType.TASK_REVIEW_APPROVED,
+  NotificationType.TASK_REVIEW_REJECTED,
+  NotificationType.TASK_DEADLINE_REMINDER,
+  NotificationType.ACCOUNT_REGISTERED,
+  NotificationType.ACCOUNT_APPROVED,
+  NotificationType.ACCOUNT_REJECTED,
+]);
+
 export async function schedulePostCommitEmailDispatch(
   handles: CreatedNotificationDispatchHandle[]
 ): Promise<void> {
+  const realtimeHandles = handles.filter((handle) =>
+    REALTIME_NOTIFICATION_TYPES.has(handle.type)
+  );
+  if (realtimeHandles.length > 0) {
+    await Promise.allSettled(
+      realtimeHandles.map((handle) =>
+        triggerPusherEvent(
+          getUserNotificationsChannel(handle.recipientUserId),
+          PUSHER_EVENTS.NOTIFICATION_CREATED,
+          {
+            notificationId: handle.notificationId,
+            title: handle.title ?? "Bạn có thông báo mới",
+            message: handle.message ?? "",
+            targetUrl: handle.targetUrl ?? null,
+          }
+        )
+      )
+    );
+  }
+
   const deliveryIds = handles
     .map((handle) => handle.deliveryId)
     .filter((id): id is string => typeof id === "string" && id.length > 0);
