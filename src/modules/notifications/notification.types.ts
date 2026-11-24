@@ -131,4 +131,7 @@ export interface CreatedNotificationDispatchHandle {
   recipientUserId: string;
   recipientEmail: string;
   type: NotificationType;
+  title?: string;
+  message?: string;
+  targetUrl?: string | null;
 }
