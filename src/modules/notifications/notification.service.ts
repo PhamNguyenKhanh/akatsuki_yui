@@ -297,6 +297,9 @@ export async function createNotificationsInTransaction(
       recipientUserId: item.recipientUserId,
       recipientEmail,
       type: item.type,
+      title: item.title,
+      message: item.message,
+      targetUrl: item.targetUrl ?? null,
     });
   }
 
