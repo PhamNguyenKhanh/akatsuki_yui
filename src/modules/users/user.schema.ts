@@ -14,7 +14,13 @@ export const userStatusFilterSchema = z.enum([
   UserStatus.SUSPENDED,
 ]);
 
-export const roleNameSchema = z.enum([ROLES.ADMIN, ROLES.INSTRUCTOR, ROLES.LEADER, ROLES.MEMBER]);
+export const roleNameSchema = z.enum([
+  ROLES.ADMIN,
+  ROLES.INSTRUCTOR,
+  ROLES.LEADER,
+  ROLES.REVIEWER,
+  ROLES.MEMBER,
+]);
 
 export const userListQuerySchema = paginationQuerySchema.extend({
   search: z.string().trim().max(150).optional(),
