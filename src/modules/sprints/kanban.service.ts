@@ -7,7 +7,10 @@ import { assertPermission, hasPermission } from "@/modules/authorization/policy.
 import { assertProjectReadAccess, parseProjectId } from "@/modules/projects/project.access";
 import { parseSprintInput } from "@/modules/sprints/sprint.access";
 import { kanbanQuerySchema } from "@/modules/sprints/sprint.schema";
-import { isProjectLeaderOrAdmin } from "@/modules/tasks/task.access";
+import {
+  isProjectLeaderOrAdmin,
+  isProjectReviewerOrLeaderOrAdmin,
+} from "@/modules/tasks/task.access";
 import {
   buildTaskProjectWhereInput,
   mapTaskSummary,
@@ -144,7 +147,9 @@ export async function getKanbanBoardService(
   const canUpdateTask = !isArchived && hasPermission(actor, PERMISSIONS.TASK_UPDATE);
   const canSubmitReview = !isArchived && hasPermission(actor, PERMISSIONS.TASK_SUBMIT_REVIEW);
   const canReviewTask =
-    !isArchived && isLeaderOrAdmin && hasPermission(actor, PERMISSIONS.TASK_REVIEW);
+    !isArchived &&
+    isProjectReviewerOrLeaderOrAdmin(actor, project) &&
+    hasPermission(actor, PERMISSIONS.TASK_REVIEW);
 
   const columns: KanbanBoardColumnsDTO = {
     TODO: [],

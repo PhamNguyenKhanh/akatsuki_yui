@@ -66,7 +66,8 @@ export function mapProjectMemberToDTO(record: ProjectMemberRecord): ProjectMembe
 const ROLE_WEIGHT: Record<ProjectMemberRole, number> = {
   LEADER: 0,
   INSTRUCTOR: 1,
-  MEMBER: 2,
+  REVIEWER: 2,
+  MEMBER: 3,
 };
 
 export const projectMemberRepository = {

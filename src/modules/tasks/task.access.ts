@@ -100,6 +100,17 @@ export function isProjectLeaderOrAdmin(
   return project.members.some((member) => member.projectRole === ProjectMemberRole.LEADER);
 }
 
+export function isProjectReviewerOrLeaderOrAdmin(
+  actor: AuthContext,
+  project: {
+    leaderId: string;
+    members: { projectRole: ProjectMemberRole }[];
+  }
+): boolean {
+  if (isProjectLeaderOrAdmin(actor, project)) return true;
+  return project.members.some((member) => member.projectRole === ProjectMemberRole.REVIEWER);
+}
+
 export async function isActiveTaskAssignee(
   taskId: string,
   userId: string,
@@ -163,6 +174,22 @@ export async function assertTaskLeaderAccess(
   await lockProjectAndTaskForMutation(tx, taskId, options);
   const task = await loadTaskRecordOrThrow(taskId, tx);
   const project = await assertProjectLeaderAccess(actor, task.projectId, tx);
+  return { task, project };
+}
+
+export async function assertTaskReviewAccess(
+  actor: AuthContext,
+  taskId: string,
+  tx: Prisma.TransactionClient = prisma,
+  options?: TaskMutationLockOptions
+) {
+  await lockProjectAndTaskForMutation(tx, taskId, options);
+  const { task, project } = await assertTaskReadAccess(actor, taskId, tx);
+  if (!isProjectReviewerOrLeaderOrAdmin(actor, project)) {
+    throw forbiddenError(
+      "Chỉ Project Leader, Reviewer của Project hoặc Admin mới có quyền duyệt / từ chối Task."
+    );
+  }
   return { task, project };
 }
 
