@@ -109,6 +109,7 @@ export function UserDetailActions({
                 <SelectItem value={ROLES.ADMIN}>ADMIN</SelectItem>
                 <SelectItem value={ROLES.INSTRUCTOR}>INSTRUCTOR</SelectItem>
                 <SelectItem value={ROLES.LEADER}>LEADER</SelectItem>
+                <SelectItem value={ROLES.REVIEWER}>REVIEWER</SelectItem>
                 <SelectItem value={ROLES.MEMBER}>MEMBER</SelectItem>
               </SelectContent>
             </Select>
